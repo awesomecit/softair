@@ -967,6 +967,102 @@ In modalità DEBUG vedrai:
 - ✅ Chiudi altri programmi che usano la seriale
 - ✅ Premi reset su Arduino prima dell'upload
 
+---
+
+## 🔋 Battery Monitor Hardware (Planned - EPIC_01)
+
+**Status:** 🚧 Hardware da implementare (vedi `.github/ISSUE_TEMPLATE/battery-monitor-hardware.md`)
+
+Circuito per monitoraggio batteria con 4 stati di carica (FULL/GOOD/LOW/CRITICAL) e feedback LED multiplo.
+
+### Componenti Aggiuntivi Richiesti
+
+| Componente | Quantità | Valore | Note |
+|------------|----------|--------|------|
+| Resistenze (voltage divider) | 2 | 10kΩ | Tolleranza 1% consigliata |
+| Resistenze (LED) | 4 | 330Ω | Current limiting |
+| LED Green | 1 | 5mm | FULL state (D2) |
+| LED Yellow | 1 | 5mm | GOOD state (D3) |
+| LED Orange | 1 | 5mm | LOW state (D4) |
+| LED Red | 1 | 5mm | CRITICAL state (D5) |
+| Potenziometro (test) | 1 | 10kΩ | Opzionale, simulatore batteria |
+| Test points | - | - | Per debug voltage divider |
+
+### Schema Circuito Battery Monitor
+
+```
+                         Arduino Uno
+                    ┌─────────────────┐
+                    │                 │
+VBatt (9V) ─────┬───│ VIN             │
+                │   │                 │
+                │   │  A0 ├───────────┼─── Voltage Sense (Vout)
+                │   │                 │
+             [R1]   │  D2 ├───[330Ω]───●──┐ LED Green (FULL)
+             10kΩ   │                      ─
+                │   │  D3 ├───[330Ω]───●──┐ LED Yellow (GOOD)
+                ├───┤                      ─
+                │   │  D4 ├───[330Ω]───●──┐ LED Orange (LOW)
+             [R2]   │                      ─
+             10kΩ   │  D5 ├───[330Ω]───●──┐ LED Red (CRITICAL)
+                │   │                      ─
+               GND  │                 │
+                    │         GND ────┴─── Common Ground
+                    │                 │
+                    └─────────────────┘
+
+Voltage Divider Calculation:
+• VBatt = 9.0V
+• R1 = R2 = 10kΩ
+• Vout = VBatt × (R2/(R1+R2)) = 9V × 0.5 = 4.5V ✅ (safe for 5V ADC)
+• ADC Reading: (4.5V / 5V) × 1023 = 921 counts
+```
+
+### Connessioni Dettagliate (Battery Monitor)
+
+**Voltage Divider:**
+- VBatt (+9V) → R1 (10kΩ) → node Vout → R2 (10kΩ) → GND
+- node Vout → A0 (Arduino analog input)
+
+**LED Batteria (nuovi):**
+- **Pin D2** → LED Green (Anodo) → Resistenza 330Ω → GND (FULL)
+- **Pin D3** → LED Yellow (Anodo) → Resistenza 330Ω → GND (GOOD)
+- **Pin D4** → LED Orange (Anodo) → Resistenza 330Ω → GND (LOW)
+- **Pin D5** → LED Red (Anodo) → Resistenza 330Ω → GND (CRITICAL)
+
+### Voltage Thresholds
+
+| Stato | Tensione | Percentuale | Vout @ A0 | ADC Counts | LED Pattern |
+|-------|----------|-------------|-----------|------------|-------------|
+| FULL | ≥ 8.5V | 75-100% | ≥ 4.25V | ≥ 870 | Green steady |
+| GOOD | 8.0-8.5V | 50-75% | 4.0-4.25V | 819-870 | Yellow steady |
+| LOW | 7.5-8.0V | 25-50% | 3.75-4.0V | 767-819 | Orange blink 1Hz |
+| CRITICAL | < 7.5V | 0-25% | < 3.75V | < 767 | Red blink 3Hz |
+
+### Test Hardware Checklist
+
+- [ ] **Voltage Divider:** Montare R1=R2=10kΩ, misurare Vout ≈ 4.5V con VBatt=9V
+- [ ] **ADC Test:** Collegare Vout ad A0, verificare ~921 counts
+- [ ] **LED Test:** Applicare 5V a D2/D3/D4/D5, verificare accensione e orientamento
+- [ ] **Potenziometro:** (opzionale) Variare Vout 0-5V, testare range ADC
+- [ ] **Safety:** Verificare Vout ≤ 5V con VBatt massima prevista
+- [ ] **Documentazione:** Foto circuito, schema wiring, note su README
+
+### Note Implementazione Software (Future)
+
+Software implementerà `BatteryMonitor` class (vedi `EPIC_01.md`):
+- Moving average filter: 10 campioni @ 100ms
+- Hysteresis: ±50mV per evitare oscillazioni
+- Update rate: 2 secondi (configurabile)
+- Considerare RC filter se noise ADC > 10mV
+
+📖 **Documentazione completa:**
+- Epic: `EPIC_01.md`
+- Issue template: `.github/ISSUE_TEMPLATE/battery-monitor-hardware.md`
+- Copilot instructions: `.github/copilot-instructions.md` (SOLID/DRY patterns)
+
+---
+
 ## 📝 Licenza
 
 Questo progetto è rilasciato sotto licenza MIT. Vedi file `LICENSE` per dettagli.

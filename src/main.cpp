@@ -29,6 +29,24 @@ const uint8_t LED_PIN = 13;             // Built-in LED on Arduino Uno
 // Button debouncing configuration
 const unsigned long DEBOUNCE_DELAY = 50; // 50ms debounce time
 
+// Battery monitor configuration
+const uint8_t BATTERY_PIN = A0;         // Analog pin for battery voltage
+const uint8_t LED_FULL = 2;             // Green LED - FULL state
+const uint8_t LED_GOOD = 3;             // Yellow LED - GOOD state  
+const uint8_t LED_LOW = 4;              // Orange LED - LOW state
+const uint8_t LED_CRITICAL = 5;         // Red LED - CRITICAL state
+
+// Voltage thresholds (direct from potentiometer, 0-5V range)
+// Potentiometer simulates battery voltage directly (no voltage divider in Wokwi)
+// Adjusted thresholds to cover full POT range for easier testing
+const float VREF = 5.0f;                // ADC reference voltage
+const float V_FULL = 3.75f;             // FULL state threshold (75% of 5V)
+const float V_GOOD = 2.50f;             // GOOD state threshold (50% of 5V)
+const float V_LOW = 1.25f;              // LOW state threshold (25% of 5V)
+// Below V_LOW is CRITICAL (0-25%)
+
+const unsigned long BATTERY_UPDATE_INTERVAL = 2000; // Check every 2 seconds
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -49,6 +67,10 @@ unsigned long buttonPressCount = 0;
 unsigned long lastStatsDisplay = 0;
 const unsigned long STATS_INTERVAL = 10000; // Show stats every 10 seconds
 
+// Battery monitor state
+unsigned long lastBatteryUpdate = 0;
+float currentVoltage = 0.0f;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FORWARD DECLARATIONS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -60,6 +82,10 @@ void displayStats();
 void displayUsage();
 void handleSerialCommands();
 void buttonISR();
+
+// Battery monitor functions
+float readBatteryVoltage();
+void updateBatteryLeds(float voltage);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS
@@ -85,6 +111,43 @@ int freeRam() {
  */
 void buttonISR() {
     buttonPressed = true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATTERY MONITOR FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * @brief Read battery voltage from ADC (A0)
+ * @return Voltage at A0 pin (after voltage divider)
+ */
+float readBatteryVoltage() {
+    const uint16_t adcValue = analogRead(BATTERY_PIN);
+    // Convert ADC to voltage: (ADC / 1023) × VREF
+    return (adcValue / 1023.0f) * VREF;
+}
+
+/**
+ * @brief Update battery LEDs based on voltage
+ * @param voltage Voltage at A0 (after voltage divider)
+ */
+void updateBatteryLeds(float voltage) {
+    // Turn off all battery LEDs first
+    digitalWrite(LED_FULL, LOW);
+    digitalWrite(LED_GOOD, LOW);
+    digitalWrite(LED_LOW, LOW);
+    digitalWrite(LED_CRITICAL, LOW);
+    
+    // Turn on appropriate LED based on voltage threshold
+    if (voltage >= V_FULL) {
+        digitalWrite(LED_FULL, HIGH);       // Green - FULL
+    } else if (voltage >= V_GOOD) {
+        digitalWrite(LED_GOOD, HIGH);       // Yellow - GOOD
+    } else if (voltage >= V_LOW) {
+        digitalWrite(LED_LOW, HIGH);        // Orange - LOW
+    } else {
+        digitalWrite(LED_CRITICAL, HIGH);   // Red - CRITICAL
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -324,6 +387,13 @@ void setup() {
     Serial.print(F("OK: LED pin "));
     Serial.println(LED_PIN);
     
+    // Configure battery monitor LED pins
+    pinMode(LED_FULL, OUTPUT);
+    pinMode(LED_GOOD, OUTPUT);
+    pinMode(LED_LOW, OUTPUT);
+    pinMode(LED_CRITICAL, OUTPUT);
+    Serial.println(F("OK: Battery LEDs initialized"));
+    
     // Attach interrupt to button pin (trigger on both RISING and FALLING edges)
     attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), buttonISR, CHANGE);
     Serial.println(F("OK: Interrupt attached"));
@@ -361,6 +431,19 @@ void loop() {
     
     // Handle serial commands
     handleSerialCommands();
+    
+    // Periodic battery monitor update
+    if (millis() - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) {
+        currentVoltage = readBatteryVoltage();
+        updateBatteryLeds(currentVoltage);
+        lastBatteryUpdate = millis();
+        
+        #ifdef DEBUG
+        Serial.print(F("Battery: "));
+        Serial.print(currentVoltage, 2);
+        Serial.println(F("V"));
+        #endif
+    }
     
     // Periodic statistics display
     if (millis() - lastStatsDisplay > STATS_INTERVAL) {
