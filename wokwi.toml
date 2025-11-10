@@ -1,0 +1,6 @@
+[wokwi]
+version = 1
+# For VS Code Wokwi extension with IntelliSense support
+# Build firmware first with: pio run
+elf = ".pio/build/uno/firmware.elf"
+firmware = ".pio/build/uno/firmware.hex"

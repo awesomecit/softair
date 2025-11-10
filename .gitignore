@@ -1,0 +1,44 @@
+# PlatformIO
+.pio/
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compilation artifacts
+*.o
+*.a
+*.hex
+*.elf
+*.eep
+*.bin
+*.map
+compile_commands.json
+
+# Dependencies
+lib/dependencies/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.backup
+
+# Keep important config files
+!platformio.ini
+!wokwi.toml
+!diagram.json
