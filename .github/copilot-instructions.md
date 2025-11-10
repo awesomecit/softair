@@ -191,7 +191,74 @@ build_src_filter =
 - **Dependency Inversion:** `SystemInitializer` depends on `BuzzerController` interface, not implementation details
 - Example: Pass `BuzzerController*` to SystemInitializer constructor (can be nullptr for silent mode)
 
-## Future Work (EPIC_01.md)
+## Battery Monitor (IMPLEMENTED - EPIC_01 Minimal)
+
+**Status:** ✅ Completed - Minimal threshold-based implementation in `main.cpp`
+
+### Implementation Pattern
+Simple **event-driven polling** (no class, no state machine) - appropriate for basic feature:
+
+```cpp
+// Constants (lines ~30-48 in main.cpp)
+const uint8_t BATTERY_PIN = A0;
+const uint8_t LED_FULL = 2, LED_GOOD = 3, LED_LOW = 4, LED_CRITICAL = 5;
+const float V_FULL = 3.75f, V_GOOD = 2.50f, V_LOW = 1.25f;  // Test thresholds
+const unsigned long BATTERY_UPDATE_INTERVAL = 2000;  // 2 seconds
+
+// Functions (lines ~115-150)
+float readBatteryVoltage() {
+    return (analogRead(BATTERY_PIN) / 1023.0f) * 5.0f;  // ADC → volts
+}
+
+void updateBatteryLeds(float voltage) {
+    // Turn off all, then light appropriate LED based on threshold
+    digitalWrite(LED_FULL, voltage >= V_FULL);
+    digitalWrite(LED_GOOD, voltage >= V_GOOD && voltage < V_FULL);
+    // ... etc
+}
+
+// In loop() (lines ~440-450): periodic update every 2s
+if (millis() - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) {
+    currentVoltage = readBatteryVoltage();
+    updateBatteryLeds(currentVoltage);
+    lastBatteryUpdate = millis();
+}
+```
+
+### Design Decisions
+**Why minimal implementation (functions, not class)?**
+- Feature complexity: Simple threshold check → procedural code sufficient
+- Memory footprint: ~20 bytes RAM, ~400 bytes Flash (no vtable, no object overhead)
+- Readability: All logic visible in main.cpp, no indirection
+- YAGNI principle: Don't create abstraction until needed (hysteresis/alarms not yet required)
+
+**When to refactor to class/state machine:**
+- Adding hysteresis (prevent LED flapping near thresholds)
+- Entry actions on state change (beep once on GOOD→LOW transition)
+- Moving average filter (class holds sample buffer)
+- Multiple battery banks (need separate state per battery)
+
+### Hardware Configuration
+**Wokwi simulation:**
+- Potentiometer (0-5V) → A0 directly (no voltage divider)
+- Test thresholds: 1.25V / 2.50V / 3.75V (cover 0-5V range evenly)
+
+**Real hardware (future):**
+- VBatt (9V) → voltage divider R1=R2=10kΩ → A0 (max 4.5V)
+- Production thresholds: 3.75V / 4.0V / 4.25V (map to 7.5V/8.0V/8.5V battery)
+
+### Memory Impact
+Updated memory usage: **60.5% RAM (1240/2048)**, **34.2% Flash (11020/32256)**
+- Battery code added: +20 bytes RAM, +400 bytes Flash
+- Still within safe margins (~800 bytes RAM free)
+
+### Critical Pattern: Periodic Polling vs Interrupts
+Battery monitor uses **polling** (millis() timer), not interrupt:
+- **Why:** ADC read takes ~100µs - too slow for ISR
+- **Pattern:** Non-blocking check in loop(), runs every 2s
+- **Alternative considered:** Timer interrupt - rejected (complexity not justified for 2s update rate)
+
+## Future Enhancements (EPIC_01 Full)
 Battery monitoring system planned - see `EPIC_01.md` for comprehensive design doc including:
 - 4-state battery monitor (FULL/GOOD/LOW/CRITICAL)
 - ADC voltage reading with moving average filter

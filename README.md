@@ -969,32 +969,68 @@ In modalità DEBUG vedrai:
 
 ---
 
-## 🔋 Battery Monitor Hardware (Planned - EPIC_01)
+## 🔋 Battery Monitor (Implemented - EPIC_01)
 
-**Status:** 🚧 Hardware da implementare (vedi `.github/ISSUE_TEMPLATE/battery-monitor-hardware.md`)
+**Status:** ✅ Completato - Monitoring attivo con 4 stati di carica
 
-Circuito per monitoraggio batteria con 4 stati di carica (FULL/GOOD/LOW/CRITICAL) e feedback LED multiplo.
+Sistema di monitoraggio batteria con feedback LED basato su soglie di tensione e lettura ADC periodica.
 
-### Componenti Aggiuntivi Richiesti
+### Implementazione Attuale
 
-| Componente | Quantità | Valore | Note |
-|------------|----------|--------|------|
-| Resistenze (voltage divider) | 2 | 10kΩ | Tolleranza 1% consigliata |
-| Resistenze (LED) | 4 | 330Ω | Current limiting |
-| LED Green | 1 | 5mm | FULL state (D2) |
-| LED Yellow | 1 | 5mm | GOOD state (D3) |
-| LED Orange | 1 | 5mm | LOW state (D4) |
-| LED Red | 1 | 5mm | CRITICAL state (D5) |
-| Potenziometro (test) | 1 | 10kΩ | Opzionale, simulatore batteria |
-| Test points | - | - | Per debug voltage divider |
+**Hardware:**
+- **Potenziometro** su A0 (simula tensione batteria 0-5V in Wokwi)
+- **4× LED** su pin D2/D3/D4/D5 con resistenze 330Ω
+- **ADC 10-bit**: Lettura analogica con conversione a volt
 
-### Schema Circuito Battery Monitor
+**Software:**
+- Polling periodico ogni 2 secondi (`BATTERY_UPDATE_INTERVAL`)
+- Threshold-based state determination (no state machine)
+- Funzioni: `readBatteryVoltage()`, `updateBatteryLeds()`
+- Memory footprint: ~20 bytes RAM, ~400 bytes Flash
+
+### Voltage Thresholds (Test Configuration)
+
+| Stato | Tensione @ A0 | Range POT | LED | Pin |
+|-------|---------------|-----------|-----|-----|
+| **CRITICAL** | < 1.25V | 0-25% | 🔴 Red | D5 |
+| **LOW** | 1.25-2.50V | 25-50% | 🟠 Orange | D4 |
+| **GOOD** | 2.50-3.75V | 50-75% | 🟡 Yellow | D3 |
+| **FULL** | ≥ 3.75V | 75-100% | 🟢 Green | D2 |
+
+> **Note:** Soglie ottimizzate per test con potenziometro 0-5V in Wokwi. Per batteria reale 9V con voltage divider R1=R2=10kΩ, usare soglie originali (V_FULL=4.25V, V_GOOD=4.0V, V_LOW=3.75V).
+
+### Schema Circuito (Wokwi Simulation)
+
+```
+                    Arduino Uno
+               ┌─────────────────┐
+               │                 │
+POT 5V ────────┤ 5V              │
+               │                 │
+POT SIG ───────┤ A0              │ ← Voltage sensing (0-5V)
+               │                 │
+POT GND ───────┤ GND             │
+               │                 │
+               │  D2 ├───[330Ω]──●─┐ LED Green (FULL)
+               │                    ─
+               │  D3 ├───[330Ω]──●─┐ LED Yellow (GOOD)
+               │                    ─
+               │  D4 ├───[330Ω]──●─┐ LED Orange (LOW)
+               │                    ─
+               │  D5 ├───[330Ω]──●─┐ LED Red (CRITICAL)
+               │                    ─
+               │         GND ──────┴── Common Ground
+               │                 │
+               └─────────────────┘
+```
+
+### Schema Circuito (Hardware Reale con Batteria)
 
 ```
                          Arduino Uno
                     ┌─────────────────┐
                     │                 │
-VBatt (9V) ─────┬───│ VIN             │
+VBatt (9V) ─────┬───┤ VIN             │
                 │   │                 │
                 │   │  A0 ├───────────┼─── Voltage Sense (Vout)
                 │   │                 │
@@ -1006,60 +1042,183 @@ VBatt (9V) ─────┬───│ VIN             │
              [R2]   │                      ─
              10kΩ   │  D5 ├───[330Ω]───●──┐ LED Red (CRITICAL)
                 │   │                      ─
-               GND  │                 │
-                    │         GND ────┴─── Common Ground
+               GND  │         GND ────┴─── Common Ground
                     │                 │
                     └─────────────────┘
 
-Voltage Divider Calculation:
-• VBatt = 9.0V
-• R1 = R2 = 10kΩ
-• Vout = VBatt × (R2/(R1+R2)) = 9V × 0.5 = 4.5V ✅ (safe for 5V ADC)
-• ADC Reading: (4.5V / 5V) × 1023 = 921 counts
+Voltage Divider: Vout = VBatt × (R2/(R1+R2)) = 9V × 0.5 = 4.5V ✅
+ADC Reading: (4.5V / 5V) × 1023 ≈ 921 counts
 ```
 
-### Connessioni Dettagliate (Battery Monitor)
+### Codice Esempio
 
-**Voltage Divider:**
-- VBatt (+9V) → R1 (10kΩ) → node Vout → R2 (10kΩ) → GND
-- node Vout → A0 (Arduino analog input)
+```cpp
+// In main.cpp - chiamato ogni 2 secondi nel loop()
+if (millis() - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) {
+    currentVoltage = readBatteryVoltage();  // Legge A0, converte a volt
+    updateBatteryLeds(currentVoltage);      // Accende LED appropriato
+    lastBatteryUpdate = millis();
+    
+    #ifdef DEBUG
+    Serial.print(F("Battery: "));
+    Serial.print(currentVoltage, 2);
+    Serial.println(F("V"));
+    #endif
+}
+```
 
-**LED Batteria (nuovi):**
-- **Pin D2** → LED Green (Anodo) → Resistenza 330Ω → GND (FULL)
-- **Pin D3** → LED Yellow (Anodo) → Resistenza 330Ω → GND (GOOD)
-- **Pin D4** → LED Orange (Anodo) → Resistenza 330Ω → GND (LOW)
-- **Pin D5** → LED Red (Anodo) → Resistenza 330Ω → GND (CRITICAL)
+### API Reference (Battery Monitor)
 
-### Voltage Thresholds
+```cpp
+// Read battery voltage from ADC
+float readBatteryVoltage();
+// Returns: voltage at A0 pin (0.0-5.0V)
 
-| Stato | Tensione | Percentuale | Vout @ A0 | ADC Counts | LED Pattern |
-|-------|----------|-------------|-----------|------------|-------------|
-| FULL | ≥ 8.5V | 75-100% | ≥ 4.25V | ≥ 870 | Green steady |
-| GOOD | 8.0-8.5V | 50-75% | 4.0-4.25V | 819-870 | Yellow steady |
-| LOW | 7.5-8.0V | 25-50% | 3.75-4.0V | 767-819 | Orange blink 1Hz |
-| CRITICAL | < 7.5V | 0-25% | < 3.75V | < 767 | Red blink 3Hz |
+// Update battery status LEDs
+void updateBatteryLeds(float voltage);
+// Turns off all LEDs, then lights appropriate one based on thresholds
+```
 
-### Test Hardware Checklist
+### Test Wokwi
 
-- [ ] **Voltage Divider:** Montare R1=R2=10kΩ, misurare Vout ≈ 4.5V con VBatt=9V
-- [ ] **ADC Test:** Collegare Vout ad A0, verificare ~921 counts
-- [ ] **LED Test:** Applicare 5V a D2/D3/D4/D5, verificare accensione e orientamento
-- [ ] **Potenziometro:** (opzionale) Variare Vout 0-5V, testare range ADC
-- [ ] **Safety:** Verificare Vout ≤ 5V con VBatt massima prevista
-- [ ] **Documentazione:** Foto circuito, schema wiring, note su README
+1. **Avvia simulatore**: Build con `pio run`, poi "Wokwi: Start Simulator"
+2. **Ruota potenziometro**: Osserva cambio LED ogni 2 secondi
+3. **Monitor seriale** (DEBUG): `Battery: X.XXV` ogni update
+4. **Verifica soglie**:
+   - 0-25% POT → LED rosso
+   - 25-50% POT → LED arancione
+   - 50-75% POT → LED giallo
+   - 75-100% POT → LED verde
 
-### Note Implementazione Software (Future)
+### Future Enhancements (EPIC_01 Full)
 
-Software implementerà `BatteryMonitor` class (vedi `EPIC_01.md`):
-- Moving average filter: 10 campioni @ 100ms
-- Hysteresis: ±50mV per evitare oscillazioni
-- Update rate: 2 secondi (configurabile)
-- Considerare RC filter se noise ADC > 10mV
+Per implementazione completa, considerare:
+
+- **State Machine con Hysteresis**: Evitare flapping LED vicino a soglie
+- **Entry Actions**: Buzzer beep solo al cambio stato (LOW→CRITICAL)
+- **Moving Average Filter**: 10 campioni @ 100ms per smoothing
+- **Auto Shutdown**: Spegnimento automatico sotto CRITICAL per >30s
+- **Calibrazione**: Offset ADC configurabile per compensare tolleranze R1/R2
 
 📖 **Documentazione completa:**
-- Epic: `EPIC_01.md`
-- Issue template: `.github/ISSUE_TEMPLATE/battery-monitor-hardware.md`
-- Copilot instructions: `.github/copilot-instructions.md` (SOLID/DRY patterns)
+- Epic design: `EPIC_01.md`
+- Flow diagrams: `main.flow.md` (Flowchart 4: Battery Monitor)
+- Copilot patterns: `.github/copilot-instructions.md`
+
+---
+
+## ⏰ Display Controller (4× 7-Segment)
+
+### ✨ Caratteristiche
+
+Sistema di visualizzazione tempo con **multiplexing hardware** per display 7-segmenti:
+
+- **4 Display 7-segmenti** common-cathode (formato HH:mm)
+- **74HC595 Shift Register** per controllo segmenti (pin 6/7/8)
+- **Multiplexing 50Hz** (5ms per digit) - refresh non-blocking
+- **Colon lampeggiante** (500ms) su D2/D3 per scandire i secondi
+- **Rotazione 180°** display D3/D4 per layout clock-style
+- **Test diagnostico** all'avvio (2s tutti accesi + 3× blink)
+
+### 🔌 Configurazione Hardware
+
+**Pin Utilizzati:**
+```cpp
+// 74HC595 Shift Register
+const uint8_t DISPLAY_DATA_PIN = 6;   // DS (Serial Data)
+const uint8_t DISPLAY_CLOCK_PIN = 7;  // SHCP (Shift Clock)
+const uint8_t DISPLAY_LATCH_PIN = 8;  // STCP (Latch Clock)
+
+// Digit Selectors (common cathode control)
+const uint8_t DISPLAY_DIGIT1_PIN = A1;  // Ore decine (leftmost)
+const uint8_t DISPLAY_DIGIT2_PIN = A2;  // Ore unità (DP colon)
+const uint8_t DISPLAY_DIGIT3_PIN = A3;  // Minuti decine (DP colon, rotated 180°)
+const uint8_t DISPLAY_DIGIT4_PIN = A4;  // Minuti unità (rightmost, rotated 180°)
+```
+
+**Cablaggio 74HC595:**
+- Q0-Q7 → Segmenti A-G + DP (parallel a tutti i 4 display)
+- Arduino A1-A4 → PIN COM dei display (multiplexing digit selector)
+- VCC → 5V, GND → GND
+
+### 📊 API DisplayController
+
+```cpp
+#include <DisplayController.h>
+
+// Inizializzazione
+DisplayController display(DATA_PIN, CLOCK_PIN, LATCH_PIN, 
+                         DIGIT1_PIN, DIGIT2_PIN, DIGIT3_PIN, DIGIT4_PIN);
+display.begin();
+
+// Display tempo HH:MM
+display.displayTime(12, 34);  // Mostra "12:34"
+
+// Lampeggio colon (chiamare ogni 500ms in loop)
+display.setColonBlink(true);   // Mostra ":"
+display.setColonBlink(false);  // Nascondi ":"
+
+// Refresh multiplexing (chiamare continuamente in loop!)
+display.refresh();  // Non-blocking, ~5ms per digit
+
+// Test diagnostico (chiamare in setup)
+display.runDiagnosticTest();  // 2s ON + 3× blink (blocking ~5s)
+```
+
+### 🎬 Sequenza di Boot Display
+
+1. **Phase 1 (2s):** Tutti i segmenti A-G + DP accesi → verifica hardware
+2. **Phase 2 (3s):** 3 cicli blink (ON/OFF 500ms) → test multiplexing
+3. **Funzionamento normale:** Display "12:34" con ":" lampeggianti a 1Hz
+
+### 💾 Footprint Memoria
+
+- **RAM:** ~50 bytes (4 digit buffers + state variables)
+- **Flash:** ~1.2KB (pattern tables + multiplexing logic)
+- **Totale progetto:** 61.7% RAM (1264/2048), 39.2% Flash (12648/32256)
+
+### 🧪 Test & Debugging
+
+**Test hardware (Wokwi simulation):**
+1. Build firmware: `pio run`
+2. Avvia Wokwi: `Ctrl+Shift+P` → "Wokwi: Start Simulator"
+3. Osserva sequenza boot e tempo incrementante
+
+**Comandi seriali:**
+```
+s - Mostra statistiche tempo/sistema
+i - Info progetto e versione
+r - Reset statistiche
+h - Help comandi
+```
+
+**Verifica visiva:**
+- ✅ Tutti i segmenti si accendono in Phase 1 (2s)
+- ✅ Blink sincronizzato in Phase 2 (3× 500ms)
+- ✅ ":" lampeggia ogni 0.5s durante funzionamento
+- ✅ Tempo incrementa ogni secondo (12:34 → 12:35 → ...)
+
+### 🔧 Pattern di Design
+
+**Multiplexing non-blocking:**
+```cpp
+// In loop() - chiamare continuamente!
+display->refresh();  // Aggiorna UN digit ogni 5ms
+```
+
+**Lampeggio colon (1Hz):**
+```cpp
+// In loop() - ogni 500ms
+if (millis() - lastBlink >= 500) {
+    colonState = !colonState;
+    display->setColonBlink(colonState);
+    lastBlink = millis();
+}
+```
+
+**Rotazione 180° segmenti:**
+- D1, D2: orientamento normale
+- D3, D4: `getSegmentPattern(num, true)` → rotazione software A↔D, B↔E, C↔F
 
 ---
 

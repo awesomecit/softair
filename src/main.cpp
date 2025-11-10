@@ -2,6 +2,7 @@
 #include <SystemInitializer.h>
 #include <ConfigLoader.h>
 #include <BuzzerController.h>
+#include <DisplayController.h>
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -47,12 +48,22 @@ const float V_LOW = 1.25f;              // LOW state threshold (25% of 5V)
 
 const unsigned long BATTERY_UPDATE_INTERVAL = 2000; // Check every 2 seconds
 
+// Display controller configuration
+const uint8_t DISPLAY_DATA_PIN = 6;     // 74HC595 DS (Serial Data)
+const uint8_t DISPLAY_CLOCK_PIN = 7;    // 74HC595 SHCP (Shift Register Clock)
+const uint8_t DISPLAY_LATCH_PIN = 8;    // 74HC595 STCP (Storage Register Clock / Latch)
+const uint8_t DISPLAY_DIGIT1_PIN = A1;  // Digit 1 COM (cathode control)
+const uint8_t DISPLAY_DIGIT2_PIN = A2;  // Digit 2 COM (cathode control)
+const uint8_t DISPLAY_DIGIT3_PIN = A3;  // Digit 3 COM (cathode control)
+const uint8_t DISPLAY_DIGIT4_PIN = A4;  // Digit 4 COM (cathode control)
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
 // ═══════════════════════════════════════════════════════════════════════════
 
 SystemInitializer* systemInit = nullptr;
 BuzzerController* buzzer = nullptr;
+DisplayController* display = nullptr;
 SystemConfig systemConfig;
 
 // Button state management
@@ -70,6 +81,15 @@ const unsigned long STATS_INTERVAL = 10000; // Show stats every 10 seconds
 // Battery monitor state
 unsigned long lastBatteryUpdate = 0;
 float currentVoltage = 0.0f;
+
+// Display time tracking
+unsigned long lastTimeUpdate = 0;
+const unsigned long TIME_UPDATE_INTERVAL = 1000;  // Update display every 1 second
+uint8_t currentHours = 12;
+uint8_t currentMinutes = 34;
+bool colonBlinkState = true;  // Track colon blink state
+unsigned long lastColonBlink = 0;
+const unsigned long COLON_BLINK_INTERVAL = 500;  // Blink every 500ms
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FORWARD DECLARATIONS
@@ -358,10 +378,24 @@ void setup() {
     buzzer = new BuzzerController(systemConfig.buzzerPin);
     buzzer->begin();
     
+    // Initialize display controller
+    display = new DisplayController(DISPLAY_DATA_PIN, DISPLAY_CLOCK_PIN, DISPLAY_LATCH_PIN,
+                                   DISPLAY_DIGIT1_PIN, DISPLAY_DIGIT2_PIN, 
+                                   DISPLAY_DIGIT3_PIN, DISPLAY_DIGIT4_PIN);
+    display->begin();
+    
     // ─────────────────────────────────────────────────────────────────────
     // PHASE 3: System Initialization with Boot Sequence
     // ─────────────────────────────────────────────────────────────────────
     Serial.println(F("\nPhase 3: Boot sequence..."));
+    
+    // Run display diagnostic test
+    Serial.println(F("[PHASE 3] Display diagnostic test..."));
+    if (display && display->runDiagnosticTest()) {
+        Serial.println(F("OK: Display test passed"));
+    } else {
+        Serial.println(F("ERROR: Display test failed!"));
+    }
     
     systemInit = new SystemInitializer(systemConfig, buzzer);
     
@@ -431,6 +465,48 @@ void loop() {
     
     // Handle serial commands
     handleSerialCommands();
+    
+    // Display refresh (non-blocking multiplexing - must call frequently!)
+    if (display) {
+        display->refresh();
+    }
+    
+    // Blink colon every 500ms
+    if (millis() - lastColonBlink >= COLON_BLINK_INTERVAL) {
+        colonBlinkState = !colonBlinkState;
+        if (display) {
+            display->setColonBlink(colonBlinkState);
+        }
+        lastColonBlink = millis();
+    }
+    
+    // Periodic time update (simulate clock)
+    if (millis() - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
+        // Increment time (simple demo)
+        currentMinutes++;
+        if (currentMinutes >= 60) {
+            currentMinutes = 0;
+            currentHours++;
+            if (currentHours >= 24) {
+                currentHours = 0;
+            }
+        }
+        
+        // Update display
+        if (display) {
+            display->displayTime(currentHours, currentMinutes);
+        }
+        
+        // Log to serial
+        Serial.print(F("Time: "));
+        if (currentHours < 10) Serial.print('0');
+        Serial.print(currentHours);
+        Serial.print(':');
+        if (currentMinutes < 10) Serial.print('0');
+        Serial.println(currentMinutes);
+        
+        lastTimeUpdate = millis();
+    }
     
     // Periodic battery monitor update
     if (millis() - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) {
