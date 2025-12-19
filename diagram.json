@@ -72,6 +72,15 @@
       "attrs": {
         "volume": "0.5"
       }
+    },
+    {
+      "type": "wokwi-membrane-keypad",
+      "id": "keypad",
+      "top": 96,
+      "left": 288,
+      "attrs": {
+        "keys": "123A456B789C*0#D"
+      }
     }
   ],
   "connections": [
@@ -88,7 +97,16 @@
     [ "r_green:2", "uno:GND.1", "black", [ "h0" ] ],
     
     [ "uno:9", "buzzer:1", "blue", [ "h0" ] ],
-    [ "buzzer:2", "uno:GND.1", "black", [ "h0" ] ]
+    [ "buzzer:2", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "uno:4", "keypad:R1", "green", [ "h0" ] ],
+    [ "uno:5", "keypad:R2", "green", [ "h0" ] ],
+    [ "uno:6", "keypad:R3", "green", [ "h0" ] ],
+    [ "uno:7", "keypad:R4", "green", [ "h0" ] ],
+    [ "uno:A1", "keypad:C1", "blue", [ "h0" ] ],
+    [ "uno:A2", "keypad:C2", "blue", [ "h0" ] ],
+    [ "uno:A3", "keypad:C3", "blue", [ "h0" ] ],
+    [ "uno:A4", "keypad:C4", "blue", [ "h0" ] ]
   ],
   "serialMonitor": {
     "display": "terminal",
