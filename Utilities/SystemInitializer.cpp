@@ -129,6 +129,20 @@ void SystemInitializer::turnOffAllLeds() {
     digitalWrite(config_.greenLedPin, LOW);
 }
 
+void SystemInitializer::disableBootLeds() {
+    // Turn off all LEDs
+    turnOffAllLeds();
+    
+    // Release pins as INPUT to avoid conflicts (es. keypad rows on pins 10,11,12)
+    pinMode(config_.redLedPin, INPUT);
+    pinMode(config_.orangeLedPin, INPUT);
+    pinMode(config_.greenLedPin, INPUT);
+    
+    #ifdef DEBUG
+    Serial.println(F("[BOOT] LEDs disabled, pins released"));
+    #endif
+}
+
 void SystemInitializer::logConfigReading(const char* configItem) {
     #ifdef DEBUG
     Serial.print(F("  [CFG] "));

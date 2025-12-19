@@ -630,6 +630,11 @@ void setup() {
     // ─────────────────────────────────────────────────────────────────────
     Serial.println(F("\n=== SYSTEM READY ==="));
     
+    // Disable boot LEDs to release pins (conflict with keypad rows 10,11,12)
+    if (systemInit) {
+        systemInit->disableBootLeds();
+    }
+    
     // Show system info
     if (systemInit) {
         systemInit->printSystemInfo();

@@ -66,6 +66,12 @@ public:
      */
     void printSystemInfo() const;
 
+    /**
+     * @brief Disable boot LEDs and release pins after initialization
+     * Call this after boot complete to avoid pin conflicts with keypad
+     */
+    void disableBootLeds();
+
 private:
     SystemConfig config_;
     InitState state_;
