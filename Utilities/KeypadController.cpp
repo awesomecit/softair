@@ -5,7 +5,10 @@
 constexpr KeypadKey KeypadController::KEY_MAP[4][4];
 
 // Debug profiling (Task 001)
-// #define DEBUG_KEYPAD_TIMING  // Uncomment per enable scan timing
+#define DEBUG_KEYPAD_TIMING  // Enable scan timing for validation
+
+// Extern counter for slow scan tracking (declared in main.cpp)
+extern uint16_t keypadSlowScans;
 
 KeypadController::KeypadController(const uint8_t rowPins[4], const uint8_t colPins[4])
     : lastKey_(KeypadKey::NONE)
@@ -88,6 +91,7 @@ KeypadKey KeypadController::scan() {
     #ifdef DEBUG_KEYPAD_TIMING
     unsigned long scanDuration = micros() - scanStart;
     if (scanDuration > 500) {  // Report solo se >500µs (slow scan)
+        keypadSlowScans++;  // Increment counter for summary
         Serial.print(F("Keypad scan: "));
         Serial.print(scanDuration);
         Serial.println(F(" µs"));
