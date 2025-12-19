@@ -72,88 +72,6 @@
       "attrs": {
         "volume": "0.5"
       }
-    },
-    {
-      "type": "wokwi-potentiometer",
-      "id": "pot_battery",
-      "top": 115.2,
-      "left": 432,
-      "rotate": 0,
-      "attrs": {
-        "label": "Battery Simulator"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led_bat_full",
-      "top": -163.2,
-      "left": 460.8,
-      "attrs": { 
-        "color": "green",
-        "label": "BAT: FULL"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led_bat_good",
-      "top": -163.2,
-      "left": 508.8,
-      "attrs": { 
-        "color": "yellow",
-        "label": "BAT: GOOD"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led_bat_low",
-      "top": -163.2,
-      "left": 556.8,
-      "attrs": { 
-        "color": "orange",
-        "label": "BAT: LOW"
-      }
-    },
-    {
-      "type": "wokwi-led",
-      "id": "led_bat_critical",
-      "top": -163.2,
-      "left": 604.8,
-      "attrs": { 
-        "color": "red",
-        "label": "BAT: CRIT"
-      }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r_bat_full",
-      "top": -86.4,
-      "left": 460.8,
-      "rotate": 90,
-      "attrs": { "value": "330" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r_bat_good",
-      "top": -86.4,
-      "left": 508.8,
-      "rotate": 90,
-      "attrs": { "value": "330" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r_bat_low",
-      "top": -86.4,
-      "left": 556.8,
-      "rotate": 90,
-      "attrs": { "value": "330" }
-    },
-    {
-      "type": "wokwi-resistor",
-      "id": "r_bat_critical",
-      "top": -86.4,
-      "left": 604.8,
-      "rotate": 90,
-      "attrs": { "value": "330" }
     }
   ],
   "connections": [
@@ -170,27 +88,7 @@
     [ "r_green:2", "uno:GND.1", "black", [ "h0" ] ],
     
     [ "uno:9", "buzzer:1", "blue", [ "h0" ] ],
-    [ "buzzer:2", "uno:GND.1", "black", [ "h0" ] ],
-    
-    [ "uno:5V", "pot_battery:VCC", "red", [ "h0" ] ],
-    [ "pot_battery:SIG", "uno:A0", "yellow", [ "h0" ] ],
-    [ "pot_battery:GND", "uno:GND.2", "black", [ "h0" ] ],
-    
-    [ "uno:2", "led_bat_full:A", "green", [ "h0" ] ],
-    [ "led_bat_full:C", "r_bat_full:1", "green", [ "v0" ] ],
-    [ "r_bat_full:2", "uno:GND.2", "black", [ "h0" ] ],
-    
-    [ "uno:3", "led_bat_good:A", "yellow", [ "h0" ] ],
-    [ "led_bat_good:C", "r_bat_good:1", "yellow", [ "v0" ] ],
-    [ "r_bat_good:2", "uno:GND.2", "black", [ "h0" ] ],
-    
-    [ "uno:4", "led_bat_low:A", "orange", [ "h0" ] ],
-    [ "led_bat_low:C", "r_bat_low:1", "orange", [ "v0" ] ],
-    [ "r_bat_low:2", "uno:GND.2", "black", [ "h0" ] ],
-    
-    [ "uno:5", "led_bat_critical:A", "red", [ "h0" ] ],
-    [ "led_bat_critical:C", "r_bat_critical:1", "red", [ "v0" ] ],
-    [ "r_bat_critical:2", "uno:GND.2", "black", [ "h0" ] ]
+    [ "buzzer:2", "uno:GND.1", "black", [ "h0" ] ]
   ],
   "serialMonitor": {
     "display": "terminal",
