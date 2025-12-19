@@ -1,0 +1,328 @@
+{
+  "version": 1,
+  "author": "Antonio Cittadino",
+  "editor": "wokwi",
+  "parts": [
+    { 
+      "type": "wokwi-arduino-uno", 
+      "id": "uno", 
+      "top": 0, 
+      "left": 0, 
+      "attrs": {} 
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_red",
+      "top": -67.2,
+      "left": 220.8,
+      "attrs": { 
+        "color": "red",
+        "label": "STEP 1: START"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_orange",
+      "top": -67.2,
+      "left": 268.8,
+      "attrs": { 
+        "color": "orange",
+        "label": "STEP 2: INIT"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_green",
+      "top": -67.2,
+      "left": 316.8,
+      "attrs": { 
+        "color": "limegreen",
+        "label": "STEP 3: READY"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_red",
+      "top": 9.6,
+      "left": 220.8,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_orange",
+      "top": 9.6,
+      "left": 268.8,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_green",
+      "top": 9.6,
+      "left": 316.8,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": -105.6,
+      "left": 384,
+      "attrs": {
+        "volume": "0.5"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_battery",
+      "top": 115.2,
+      "left": 432,
+      "rotate": 0,
+      "attrs": {
+        "label": "Battery Simulator"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_divider_1",
+      "top": 115.2,
+      "left": 528,
+      "rotate": 0,
+      "attrs": { 
+        "value": "10000",
+        "label": "R1 10kΩ"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_divider_2",
+      "top": 163.2,
+      "left": 528,
+      "rotate": 0,
+      "attrs": { 
+        "value": "10000",
+        "label": "R2 10kΩ"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_bat_full",
+      "top": -163.2,
+      "left": 460.8,
+      "attrs": { 
+        "color": "green",
+        "label": "FULL"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_bat_good",
+      "top": -163.2,
+      "left": 508.8,
+      "attrs": { 
+        "color": "yellow",
+        "label": "GOOD"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_bat_low",
+      "top": -163.2,
+      "left": 556.8,
+      "attrs": { 
+        "color": "orange",
+        "label": "LOW"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_bat_critical",
+      "top": -163.2,
+      "left": 604.8,
+      "attrs": { 
+        "color": "red",
+        "label": "CRITICAL"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_bat_full",
+      "top": -86.4,
+      "left": 460.8,
+      "rotate": 90,
+      "attrs": { "value": "330" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_bat_good",
+      "top": -86.4,
+      "left": 508.8,
+      "rotate": 90,
+      "attrs": { "value": "330" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_bat_low",
+      "top": -86.4,
+      "left": 556.8,
+      "rotate": 90,
+      "attrs": { "value": "330" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_bat_critical",
+      "top": -86.4,
+      "left": 604.8,
+      "rotate": 90,
+      "attrs": { "value": "330" }
+    },
+    {
+      "type": "wokwi-74hc595",
+      "id": "shift_register",
+      "top": 350,
+      "left": 300,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d1",
+      "top": 100,
+      "left": -150,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d2",
+      "top": 100,
+      "left": -50,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d3",
+      "top": 100,
+      "left": 70,
+      "rotate": 180,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d4",
+      "top": 100,
+      "left": 170,
+      "rotate": 180,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-membrane-keypad",
+      "id": "keypad",
+      "top": 300,
+      "left": -200,
+      "attrs": { 
+        "keys": "123A456B789C*0#D"
+      }
+    }
+  ],
+  "connections": [
+    [ "uno:10", "led_red:A", "red", [ "h0" ] ],
+    [ "led_red:C", "r_red:1", "red", [ "v0" ] ],
+    [ "r_red:2", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "uno:11", "led_orange:A", "orange", [ "h0" ] ],
+    [ "led_orange:C", "r_orange:1", "orange", [ "v0" ] ],
+    [ "r_orange:2", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "uno:12", "led_green:A", "green", [ "h0" ] ],
+    [ "led_green:C", "r_green:1", "green", [ "v0" ] ],
+    [ "r_green:2", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "uno:9", "buzzer:1", "blue", [ "h0" ] ],
+    [ "buzzer:2", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "uno:5V", "pot_battery:VCC", "red", [ "h0" ] ],
+    [ "pot_battery:SIG", "uno:A0", "yellow", [ "h0" ] ],
+    [ "pot_battery:GND", "uno:GND.2", "black", [ "h0" ] ],
+    
+    [ "uno:2", "led_bat_full:A", "green", [ "h0" ] ],
+    [ "led_bat_full:C", "r_bat_full:1", "green", [ "v0" ] ],
+    [ "r_bat_full:2", "uno:GND.2", "black", [ "h0" ] ],
+    
+    [ "uno:3", "led_bat_good:A", "yellow", [ "h0" ] ],
+    [ "led_bat_good:C", "r_bat_good:1", "yellow", [ "v0" ] ],
+    [ "r_bat_good:2", "uno:GND.2", "black", [ "h0" ] ],
+    
+    [ "uno:4", "led_bat_low:A", "orange", [ "h0" ] ],
+    [ "led_bat_low:C", "r_bat_low:1", "orange", [ "v0" ] ],
+    [ "r_bat_low:2", "uno:GND.2", "black", [ "h0" ] ],
+    
+    [ "uno:5", "led_bat_critical:A", "red", [ "h0" ] ],
+    [ "led_bat_critical:C", "r_bat_critical:1", "red", [ "v0" ] ],
+    [ "r_bat_critical:2", "uno:GND.2", "black", [ "h0" ] ],
+    
+    [ "uno:6", "shift_register:DS", "blue", [ "h0" ] ],
+    [ "uno:7", "shift_register:SHCP", "green", [ "h0" ] ],
+    [ "uno:8", "shift_register:STCP", "yellow", [ "h0" ] ],
+    [ "shift_register:VCC", "uno:5V", "red", [ "h0" ] ],
+    [ "shift_register:GND", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "shift_register:Q0", "display_d1:A", "orange", [ "h0" ] ],
+    [ "shift_register:Q0", "display_d2:A", "orange", [ "h0" ] ],
+    [ "shift_register:Q0", "display_d3:A", "orange", [ "h0" ] ],
+    [ "shift_register:Q0", "display_d4:A", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q1", "display_d1:B", "orange", [ "h0" ] ],
+    [ "shift_register:Q1", "display_d2:B", "orange", [ "h0" ] ],
+    [ "shift_register:Q1", "display_d3:B", "orange", [ "h0" ] ],
+    [ "shift_register:Q1", "display_d4:B", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q2", "display_d1:C", "orange", [ "h0" ] ],
+    [ "shift_register:Q2", "display_d2:C", "orange", [ "h0" ] ],
+    [ "shift_register:Q2", "display_d3:C", "orange", [ "h0" ] ],
+    [ "shift_register:Q2", "display_d4:C", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q3", "display_d1:D", "orange", [ "h0" ] ],
+    [ "shift_register:Q3", "display_d2:D", "orange", [ "h0" ] ],
+    [ "shift_register:Q3", "display_d3:D", "orange", [ "h0" ] ],
+    [ "shift_register:Q3", "display_d4:D", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q4", "display_d1:E", "orange", [ "h0" ] ],
+    [ "shift_register:Q4", "display_d2:E", "orange", [ "h0" ] ],
+    [ "shift_register:Q4", "display_d3:E", "orange", [ "h0" ] ],
+    [ "shift_register:Q4", "display_d4:E", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q5", "display_d1:F", "orange", [ "h0" ] ],
+    [ "shift_register:Q5", "display_d2:F", "orange", [ "h0" ] ],
+    [ "shift_register:Q5", "display_d3:F", "orange", [ "h0" ] ],
+    [ "shift_register:Q5", "display_d4:F", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q6", "display_d1:G", "orange", [ "h0" ] ],
+    [ "shift_register:Q6", "display_d2:G", "orange", [ "h0" ] ],
+    [ "shift_register:Q6", "display_d3:G", "orange", [ "h0" ] ],
+    [ "shift_register:Q6", "display_d4:G", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q7", "display_d1:DP", "orange", [ "h0" ] ],
+    [ "shift_register:Q7", "display_d2:DP", "orange", [ "h0" ] ],
+    [ "shift_register:Q7", "display_d3:DP", "orange", [ "h0" ] ],
+    [ "shift_register:Q7", "display_d4:DP", "orange", [ "h0" ] ],
+    
+    [ "uno:A1", "display_d1:COM", "purple", [ "h0" ] ],
+    [ "uno:A2", "display_d2:COM", "purple", [ "h0" ] ],
+    [ "uno:A3", "display_d3:COM", "purple", [ "h0" ] ],
+    [ "uno:A4", "display_d4:COM", "purple", [ "h0" ] ],
+    
+    [ "keypad:R1", "uno:13", "cyan", [ "h0" ] ],
+    [ "keypad:R2", "uno:12", "cyan", [ "h0" ] ],
+    [ "keypad:R3", "uno:11", "cyan", [ "h0" ] ],
+    [ "keypad:R4", "uno:10", "cyan", [ "h0" ] ],
+    [ "keypad:C1", "uno:A5", "magenta", [ "h0" ] ],
+    [ "keypad:C2", "uno:9", "magenta", [ "h0" ] ],
+    [ "keypad:C3", "uno:8", "magenta", [ "h0" ] ],
+    [ "keypad:C4", "uno:7", "magenta", [ "h0" ] ]
+  ],
+  "serialMonitor": {
+    "display": "terminal",
+    "newline": "lf"
+  },
+  "dependencies": {}
+}
