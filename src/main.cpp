@@ -3,6 +3,8 @@
 #include <ConfigLoader.h>
 #include <BuzzerController.h>
 #include <DisplayController.h>
+#include <KeypadController.h>
+#include <CountdownController.h>
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -57,6 +59,18 @@ const uint8_t DISPLAY_DIGIT2_PIN = A2;  // Digit 2 COM (cathode control)
 const uint8_t DISPLAY_DIGIT3_PIN = A3;  // Digit 3 COM (cathode control)
 const uint8_t DISPLAY_DIGIT4_PIN = A4;  // Digit 4 COM (cathode control)
 
+// Keypad controller configuration (4×4 matrix)
+// Rows: R1-R4 connect to digital pins 13, 12, 11, 10
+// Cols: C1-C4 connect to A5, 9, 8, 7
+const uint8_t KEYPAD_ROW_PINS[4] = {13, 12, 11, 10};  // R1, R2, R3, R4
+const uint8_t KEYPAD_COL_PINS[4] = {A5, 9, 8, 7};     // C1, C2, C3, C4
+
+// Display modes
+enum class DisplayMode : uint8_t {
+    CLOCK,           // Orologio con tempo corrente
+    COUNTDOWN_EDIT   // Editing countdown timer
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -64,7 +78,15 @@ const uint8_t DISPLAY_DIGIT4_PIN = A4;  // Digit 4 COM (cathode control)
 SystemInitializer* systemInit = nullptr;
 BuzzerController* buzzer = nullptr;
 DisplayController* display = nullptr;
+KeypadController* keypad = nullptr;
+CountdownController* countdown = nullptr;
 SystemConfig systemConfig;
+
+// Display mode state
+DisplayMode currentMode = DisplayMode::CLOCK;
+bool modeSelectionActive = false;  // DISABLED per test - abilita dopo fix multiplexing
+unsigned long modeSelectionStart = 0;
+const unsigned long MODE_SELECTION_TIMEOUT = 5000;
 
 // Button state management
 volatile bool buttonPressed = false;    // Flag set by interrupt
@@ -91,6 +113,11 @@ bool colonBlinkState = true;  // Track colon blink state
 unsigned long lastColonBlink = 0;
 const unsigned long COLON_BLINK_INTERVAL = 500;  // Blink every 500ms
 
+// Countdown editing state
+bool cursorBlinkState = true;  // Track cursor blink (show/hide digit)
+unsigned long lastCursorBlink = 0;
+const unsigned long CURSOR_BLINK_INTERVAL = 500;  // Blink every 500ms
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FORWARD DECLARATIONS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,6 +133,10 @@ void buttonISR();
 // Battery monitor functions
 float readBatteryVoltage();
 void updateBatteryLeds(float voltage);
+
+// Keypad & countdown functions
+void handleKeyPress(KeypadKey key);
+void updateCountdownDisplay();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS
@@ -168,6 +199,106 @@ void updateBatteryLeds(float voltage) {
     } else {
         digitalWrite(LED_CRITICAL, HIGH);   // Red - CRITICAL
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEYPAD & COUNTDOWN HANDLING
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * @brief Handle keypad key press (da EPIC_03)
+ * 
+ * Mapping funzionale:
+ *   KEY_A → MODE (toggle CLOCK ↔ COUNTDOWN_EDIT)
+ *   KEY_4 → LEFT (move cursor left con wrap)
+ *   KEY_6 → RIGHT (move cursor right con wrap)
+ *   KEY_2 → UP (increment digit at cursor)
+ *   KEY_8 → DOWN (decrement digit at cursor)
+ * 
+ * Serial logging format: [MODE], [CURSOR], [VALUE]
+ * 
+ * @param key Chiave premuta
+ */
+void handleKeyPress(KeypadKey key) {
+    // Debug: print chiave premuta
+    Serial.print(F("[KEY] "));
+    Serial.println(KeypadController::keyToChar(key));
+    
+    // ────────────────────────────────────────────────────────────────────────
+    // MODE SELECTION (solo al boot)
+    // ────────────────────────────────────────────────────────────────────────
+    if (modeSelectionActive) {
+        if (key == KeypadKey::KEY_A) {
+            // Utente ha scelto COUNTDOWN_EDIT
+            modeSelectionActive = false;
+            currentMode = DisplayMode::COUNTDOWN_EDIT;
+            Serial.println(F("[MODE] COUNTDOWN_EDIT selected"));
+            
+            // Mostra countdown 10:00 con colon fisso ON
+            updateCountdownDisplay();
+            if (display) {
+                display->setColonBlink(false);  // Colon sempre ON
+            }
+            
+            // Beep conferma
+            if (buzzer) {
+                buzzer->playSuccess();
+            }
+        }
+        // Altri tasti ignorati durante mode selection
+        return;
+    }
+    
+    // ────────────────────────────────────────────────────────────────────────
+    // RUNTIME MODE TOGGLE (dopo boot)
+    // ────────────────────────────────────────────────────────────────────────
+    if (key == KeypadKey::KEY_A) {
+        // Toggle display mode
+        if (currentMode == DisplayMode::CLOCK) {
+            currentMode = DisplayMode::COUNTDOWN_EDIT;
+            Serial.println(F("[MODE] COUNTDOWN_EDIT"));
+            
+            // Aggiorna display con valore countdown
+            updateCountdownDisplay();
+            if (display) {
+                display->setColonBlink(false);  // Colon sempre ON
+            }
+        } else {
+            currentMode = DisplayMode::CLOCK;
+            Serial.println(F("[MODE] CLOCK"));
+            
+            // Torna a mostrare orologio
+            if (display) {
+                display->displayTime(currentHours, currentMinutes);
+                display->setColonBlink(true);  // Riabilita blink colon
+            }
+        }
+        return;
+    }
+    
+    // ────────────────────────────────────────────────────────────────────────
+    // COUNTDOWN EDITING (solo in COUNTDOWN_EDIT mode)
+    // ────────────────────────────────────────────────────────────────────────
+    // NOTA: Per ora disabilitato - mostra solo valore statico 10:00
+    // TODO (future): Abilitare cursor navigation + increment/decrement
+    // quando DisplayController supporterà blanking digit singolo per cursor blink
+}
+
+/**
+/**
+ * @brief Aggiorna display con countdown value (statico)
+ * 
+ * Mostra countdown time in formato HH:MM.
+ * In questa versione: solo display statico, no cursor blink.
+ */
+void updateCountdownDisplay() {
+    if (!display || !countdown) return;
+    
+    uint8_t h, m;
+    countdown->getTime(h, m);
+    display->displayTime(h, m);
+    // Colon sempre ON in COUNTDOWN mode (no blink)
+    display->setColonBlink(false);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -384,6 +515,15 @@ void setup() {
                                    DISPLAY_DIGIT3_PIN, DISPLAY_DIGIT4_PIN);
     display->begin();
     
+    // Initialize keypad controller
+    keypad = new KeypadController(KEYPAD_ROW_PINS, KEYPAD_COL_PINS);
+    keypad->begin();
+    Serial.println(F("OK: Keypad initialized"));
+    
+    // Initialize countdown controller (default 10:00)
+    countdown = new CountdownController();
+    Serial.println(F("OK: Countdown initialized (10:00)"));
+    
     // ─────────────────────────────────────────────────────────────────────
     // PHASE 3: System Initialization with Boot Sequence
     // ─────────────────────────────────────────────────────────────────────
@@ -433,7 +573,16 @@ void setup() {
     Serial.println(F("OK: Interrupt attached"));
     
     // ─────────────────────────────────────────────────────────────────────
-    // PHASE 5: System Ready
+    // PHASE 5: Display Initial Value
+    // ─────────────────────────────────────────────────────────────────────
+    Serial.println(F("\nPhase 5: Setting initial display..."));
+    if (display) {
+        display->displayTime(currentHours, currentMinutes);  // Mostra 12:34
+        Serial.println(F("OK: Display set to 12:34"));
+    }
+    
+    // ─────────────────────────────────────────────────────────────────────
+    // PHASE 6: System Ready
     // ─────────────────────────────────────────────────────────────────────
     Serial.println(F("\n=== SYSTEM READY ==="));
     
@@ -453,25 +602,33 @@ void setup() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void loop() {
-    // Check if button interrupt flag was set
+    // ══════════════════════════════════════════════════════════════════════
+    // STEP 1: MULTIPLEXING REFRESH (PRIORITÀ ASSOLUTA - mai saltare!)
+    // ══════════════════════════════════════════════════════════════════════
+    if (display) {
+        display->refresh();  // Chiamato OGNI loop - essenziale per multiplexing
+    }
+    
+    // ══════════════════════════════════════════════════════════════════════
+    // STEP 2: INPUT HANDLING
+    // ══════════════════════════════════════════════════════════════════════
+    
+    // Button interrupt handling
     if (buttonPressed) {
-        buttonPressed = false;  // Clear the flag
-        
-        // Handle button with debouncing
+        buttonPressed = false;
         if (handleButton()) {
             toggleLed();
         }
     }
     
-    // Handle serial commands
+    // Serial commands
     handleSerialCommands();
     
-    // Display refresh (non-blocking multiplexing - must call frequently!)
-    if (display) {
-        display->refresh();
-    }
+    // ══════════════════════════════════════════════════════════════════════
+    // STEP 3: DISPLAY UPDATES (solo quando contenuto CAMBIA)
+    // ══════════════════════════════════════════════════════════════════════
     
-    // Blink colon every 500ms
+    // Colon blink (500ms) - solo toggle bit, no refresh
     if (millis() - lastColonBlink >= COLON_BLINK_INTERVAL) {
         colonBlinkState = !colonBlinkState;
         if (display) {
@@ -480,9 +637,8 @@ void loop() {
         lastColonBlink = millis();
     }
     
-    // Periodic time update (simulate clock)
+    // Time update (1 secondo) - chiama displayTime() solo quando cambia
     if (millis() - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
-        // Increment time (simple demo)
         currentMinutes++;
         if (currentMinutes >= 60) {
             currentMinutes = 0;
@@ -492,12 +648,11 @@ void loop() {
             }
         }
         
-        // Update display
+        // Update display SOLO quando tempo cambia
         if (display) {
             display->displayTime(currentHours, currentMinutes);
         }
         
-        // Log to serial
         Serial.print(F("Time: "));
         if (currentHours < 10) Serial.print('0');
         Serial.print(currentHours);
@@ -508,7 +663,9 @@ void loop() {
         lastTimeUpdate = millis();
     }
     
-    // Periodic battery monitor update
+    // ══════════════════════════════════════════════════════════════════════
+    // STEP 4: BACKGROUND TASKS (battery, stats)
+    // ══════════════════════════════════════════════════════════════════════
     if (millis() - lastBatteryUpdate >= BATTERY_UPDATE_INTERVAL) {
         currentVoltage = readBatteryVoltage();
         updateBatteryLeds(currentVoltage);
