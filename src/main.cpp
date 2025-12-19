@@ -72,50 +72,6 @@ enum class DisplayMode : uint8_t {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PROFILING CONFIGURATION (Task 001 - Phase 1)
-// ═══════════════════════════════════════════════════════════════════════════
-#define DEBUG_LOOP_TIMING     // Enable loop timing measurement
-#define DEBUG_KEYPAD_TIMING   // Enable keypad scan timing
-#define DEBUG_DISPLAY_CALLS   // Enable displayTime() call tracking
-
-#ifdef DEBUG_LOOP_TIMING
-struct LoopTimingStats {
-    unsigned long sum = 0;
-    unsigned long count = 0;
-    unsigned long minTime = 999999;
-    unsigned long maxTime = 0;
-    
-    void reset() {
-        sum = 0;
-        count = 0;
-        minTime = 999999;
-        maxTime = 0;
-    }
-    
-    void record(unsigned long time) {
-        sum += time;
-        count++;
-        if (time < minTime) minTime = time;
-        if (time > maxTime) maxTime = time;
-    }
-    
-    void print() {
-        if (count > 0) {
-            Serial.print(F("Loop timing (µs): avg="));
-            Serial.print(sum / count);
-            Serial.print(F(", min="));
-            Serial.print(minTime);
-            Serial.print(F(", max="));
-            Serial.println(maxTime);
-        }
-    }
-};
-
-LoopTimingStats loopStats;
-const uint16_t TIMING_SAMPLE_SIZE = 100;  // Report every 100 loops
-#endif
-
-// ═══════════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -651,10 +607,6 @@ void setup() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void loop() {
-    #ifdef DEBUG_LOOP_TIMING
-    unsigned long loopStart = micros();
-    #endif
-    
     // ══════════════════════════════════════════════════════════════════════
     // STEP 1: MULTIPLEXING REFRESH (PRIORITÀ ASSOLUTA - mai saltare!)
     // ══════════════════════════════════════════════════════════════════════
@@ -738,20 +690,4 @@ void loop() {
         #endif
         lastStatsDisplay = millis();
     }
-    
-    // ══════════════════════════════════════════════════════════════════════
-    // STEP 5: PROFILING OUTPUT (Task 001 - Phase 1)
-    // ══════════════════════════════════════════════════════════════════════
-    #ifdef DEBUG_LOOP_TIMING
-    unsigned long loopEnd = micros();
-    unsigned long loopTime = loopEnd - loopStart;
-    loopStats.record(loopTime);
-    
-    if (loopStats.count >= TIMING_SAMPLE_SIZE) {
-        Serial.println(F("\n═══ PROFILING REPORT (100 samples) ═══"));
-        loopStats.print();
-        Serial.println();
-        loopStats.reset();
-    }
-    #endif
 }
