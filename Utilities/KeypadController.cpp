@@ -1,7 +1,11 @@
 #include "KeypadController.h"
+#include <Arduino.h>  // For Serial, micros()
 
 // Definizione della matrice statica (required per constexpr array)
 constexpr KeypadKey KeypadController::KEY_MAP[4][4];
+
+// Debug profiling (Task 001)
+// #define DEBUG_KEYPAD_TIMING  // Uncomment per enable scan timing
 
 KeypadController::KeypadController(const uint8_t rowPins[4], const uint8_t colPins[4])
     : lastKey_(KeypadKey::NONE)
@@ -28,6 +32,10 @@ void KeypadController::begin() {
 }
 
 KeypadKey KeypadController::scan() {
+    #ifdef DEBUG_KEYPAD_TIMING
+    unsigned long scanStart = micros();
+    #endif
+    
     // Check debounce window (converti ms → µs per confronto con micros())
     unsigned long now = micros();
     if ((now - debounceTimestamp_) < (DEBOUNCE_DELAY_MS * 1000UL)) {
@@ -76,6 +84,15 @@ KeypadKey KeypadController::scan() {
         }
         lastKey_ = currentKey;
     }
+    
+    #ifdef DEBUG_KEYPAD_TIMING
+    unsigned long scanDuration = micros() - scanStart;
+    if (scanDuration > 500) {  // Report solo se >500µs (slow scan)
+        Serial.print(F("Keypad scan: "));
+        Serial.print(scanDuration);
+        Serial.println(F(" µs"));
+    }
+    #endif
     
     return result;
 }

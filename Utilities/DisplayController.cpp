@@ -1,5 +1,13 @@
 #include "DisplayController.h"
 
+// Debug profiling (Task 001)
+// #define DEBUG_DISPLAY_CALLS  // Uncomment per tracciare displayTime() calls
+
+#ifdef DEBUG_DISPLAY_CALLS
+static unsigned long lastCallTime = 0;
+static uint16_t callCount = 0;
+#endif
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTRUCTOR & INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
@@ -52,6 +60,17 @@ void DisplayController::begin() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 void DisplayController::displayTime(uint8_t hours, uint8_t minutes) {
+    #ifdef DEBUG_DISPLAY_CALLS
+    unsigned long now = millis();
+    callCount++;
+    Serial.print(F("displayTime() call #"));
+    Serial.print(callCount);
+    Serial.print(F(", delta: "));
+    Serial.print(now - lastCallTime);
+    Serial.println(F(" ms"));
+    lastCallTime = now;
+    #endif
+    
     // Validate input
     if (hours > 23) hours = 0;
     if (minutes > 59) minutes = 0;
