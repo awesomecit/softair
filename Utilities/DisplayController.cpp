@@ -157,12 +157,8 @@ bool DisplayController::runDiagnosticTest() {
 }
 
 void DisplayController::refresh() {
-    // Non-blocking multiplexing: only update if enough time has passed
-    unsigned long currentMicros = micros();
-    if (currentMicros - lastRefreshTime_ < REFRESH_INTERVAL_US) {
-        return;  // Not time yet
-    }
-    lastRefreshTime_ = currentMicros;
+    // Non-blocking multiplexing: refresh ogni loop (REFRESH_INTERVAL_US = 0)
+    // Con loop time ~26µs → 4 digit × 26µs = ~100µs full cycle = 10kHz refresh rate
     
     // Get segment pattern for current digit
     uint8_t segments = digitBuffer_[currentDigit_];

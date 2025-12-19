@@ -93,7 +93,7 @@ private:
     unsigned long lastRefreshTime_; // For non-blocking refresh timing
     
     // Refresh interval (5ms = 200Hz per digit → 50Hz full cycle)
-    static constexpr unsigned long REFRESH_INTERVAL_US = 5000;  // 5ms in microseconds
+    static constexpr unsigned long REFRESH_INTERVAL_US = 0;  // No throttling - refresh ogni loop (26µs avg)
     
     /**
      * @brief Write segment pattern + digit selector to shift register

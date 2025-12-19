@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "author": "Antonio Cittadino",
+  "editor": "wokwi",
+  "parts": [
+    { 
+      "type": "wokwi-arduino-uno", 
+      "id": "uno", 
+      "top": 0, 
+      "left": 0, 
+      "attrs": {} 
+    },
+    {
+      "type": "wokwi-74hc595",
+      "id": "shift_register",
+      "top": 200,
+      "left": 300,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d1",
+      "top": 50,
+      "left": -150,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d2",
+      "top": 50,
+      "left": -50,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d3",
+      "top": 50,
+      "left": 70,
+      "rotate": 180,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "display_d4",
+      "top": 50,
+      "left": 170,
+      "rotate": 180,
+      "attrs": { "common": "cathode" }
+    }
+  ],
+  "connections": [
+    [ "uno:6", "shift_register:DS", "blue", [ "h0" ] ],
+    [ "uno:7", "shift_register:SHCP", "green", [ "h0" ] ],
+    [ "uno:8", "shift_register:STCP", "yellow", [ "h0" ] ],
+    [ "shift_register:VCC", "uno:5V", "red", [ "h0" ] ],
+    [ "shift_register:GND", "uno:GND.1", "black", [ "h0" ] ],
+    
+    [ "shift_register:Q0", "display_d1:A", "orange", [ "h0" ] ],
+    [ "shift_register:Q0", "display_d2:A", "orange", [ "h0" ] ],
+    [ "shift_register:Q0", "display_d3:A", "orange", [ "h0" ] ],
+    [ "shift_register:Q0", "display_d4:A", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q1", "display_d1:B", "orange", [ "h0" ] ],
+    [ "shift_register:Q1", "display_d2:B", "orange", [ "h0" ] ],
+    [ "shift_register:Q1", "display_d3:B", "orange", [ "h0" ] ],
+    [ "shift_register:Q1", "display_d4:B", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q2", "display_d1:C", "orange", [ "h0" ] ],
+    [ "shift_register:Q2", "display_d2:C", "orange", [ "h0" ] ],
+    [ "shift_register:Q2", "display_d3:C", "orange", [ "h0" ] ],
+    [ "shift_register:Q2", "display_d4:C", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q3", "display_d1:D", "orange", [ "h0" ] ],
+    [ "shift_register:Q3", "display_d2:D", "orange", [ "h0" ] ],
+    [ "shift_register:Q3", "display_d4:D", "orange", [ "h0" ] ],
+    [ "shift_register:Q3", "display_d3:D", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q4", "display_d1:E", "orange", [ "h0" ] ],
+    [ "shift_register:Q4", "display_d2:E", "orange", [ "h0" ] ],
+    [ "shift_register:Q4", "display_d3:E", "orange", [ "h0" ] ],
+    [ "shift_register:Q4", "display_d4:E", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q5", "display_d1:F", "orange", [ "h0" ] ],
+    [ "shift_register:Q5", "display_d2:F", "orange", [ "h0" ] ],
+    [ "shift_register:Q5", "display_d3:F", "orange", [ "h0" ] ],
+    [ "shift_register:Q5", "display_d4:F", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q6", "display_d1:G", "orange", [ "h0" ] ],
+    [ "shift_register:Q6", "display_d2:G", "orange", [ "h0" ] ],
+    [ "shift_register:Q6", "display_d3:G", "orange", [ "h0" ] ],
+    [ "shift_register:Q6", "display_d4:G", "orange", [ "h0" ] ],
+    
+    [ "shift_register:Q7", "display_d1:DP", "orange", [ "h0" ] ],
+    [ "shift_register:Q7", "display_d2:DP", "orange", [ "h0" ] ],
+    [ "shift_register:Q7", "display_d3:DP", "orange", [ "h0" ] ],
+    [ "shift_register:Q7", "display_d4:DP", "orange", [ "h0" ] ],
+    
+    [ "uno:A1", "display_d1:COM", "purple", [ "h0" ] ],
+    [ "uno:A2", "display_d2:COM", "purple", [ "h0" ] ],
+    [ "uno:A3", "display_d3:COM", "purple", [ "h0" ] ],
+    [ "uno:A4", "display_d4:COM", "purple", [ "h0" ] ]
+  ],
+  "serialMonitor": {
+    "display": "terminal",
+    "newline": "lf"
+  },
+  "dependencies": {}
+}
