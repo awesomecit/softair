@@ -38,6 +38,9 @@ lib/dependencies/
 *.old
 *.backup
 
+# Documentation archive
+archivio/
+
 # Keep important config files
 !platformio.ini
 !wokwi.toml
