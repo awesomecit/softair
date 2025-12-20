@@ -8,18 +8,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // TACBOMB COUNTDOWN TIMER - FULL STATE MACHINE
 // ═══════════════════════════════════════════════════════════════════════════
-// States: SETUP_INIT → SETUP_EDIT → ARMED → COUNTDOWN_RUNNING → EXPLODED
+// States: SETUP_INIT → SETUP_EDIT → ARMED → COUNTDOWN_RUNNING → DISARM_MODE → EXPLODED
 // Controls:
 //   - KEY_A: Enter EDIT mode
 //   - KEY_2/8: increment/decrement selected digit (in EDIT)
 //   - KEY_4/6: move cursor left/right (wrap around)
-//   - KEY_C: Confirm timer → ARMED state
-//   - KEY_D: Cancel (return to INIT, reset timer)
-//   - KEY_STAR (*): START countdown from ARMED
+//   - KEY_C: Confirm timer → ARMED state (in EDIT), Confirm disarm code (in DISARM)
+//   - KEY_D: Cancel (return to INIT, reset timer in EDIT), Clear disarm code (in DISARM)
+//   - KEY_STAR (*): START countdown from ARMED, Cancel disarm (in DISARM)
+//   - KEY_HASH (#): Toggle secret code visibility (SETUP_INIT only), Enter DISARM mode (COUNTDOWN)
+//   - KEY_0-9: Enter disarm code digits (in DISARM mode)
 //   - KEY_B: Battery check (future - not implemented)
 // Visual feedback:
-//   - Colon: SOLID in SETUP_EDIT/ARMED, BLINKING during COUNTDOWN_RUNNING
-//   - Status LED: OFF (INIT), ORANGE blink (EDIT/COUNTDOWN), GREEN (ARMED), RED blink (EXPLODED)
+//   - Colon: SOLID in SETUP_EDIT/ARMED/DISARM, BLINKING during COUNTDOWN_RUNNING
+//   - Status LED: OFF (INIT), ORANGE blink (EDIT/COUNTDOWN), GREEN (ARMED), YELLOW (DISARM), RED blink (EXPLODED)
 // ═══════════════════════════════════════════════════════════════════════════
 
 // System configuration
@@ -44,6 +46,7 @@ Adafruit_NeoPixel statusLed(STATUS_LED_COUNT, STATUS_LED_PIN, NEO_GRB + NEO_KHZ8
 const uint32_t COLOR_OFF = statusLed.Color(0, 0, 0);
 const uint32_t COLOR_RED = statusLed.Color(255, 0, 0);
 const uint32_t COLOR_ORANGE = statusLed.Color(255, 165, 0);
+const uint32_t COLOR_YELLOW = statusLed.Color(255, 255, 0);
 const uint32_t COLOR_GREEN = statusLed.Color(0, 255, 0);
 
 // Keypad configuration (4×4 membrane keypad)
@@ -76,6 +79,7 @@ enum class BombState {
     SETUP_EDIT,        // Editing timer: orange blink, D1 blinks (cursor), colon SOLID
     ARMED,             // Timer confirmed: green solid, colon SOLID, wait for KEY_STAR
     COUNTDOWN_RUNNING, // Countdown active: orange blink, colon BLINKS, decrement every 1s
+    DISARM_MODE,       // Disarm mode: enter 4-digit code, # to confirm
     EXPLODED           // Timer reached 00:00: red blink, alarm sound
 };
 
@@ -87,6 +91,12 @@ uint8_t timerSeconds = 0;
 
 // Cursor position for editing (0=M1, 1=M0, 2=S1, 3=S0)
 uint8_t cursorPosition = 0;
+
+// Disarm mode variables
+char disarmCode[5] = "----";  // 4-digit code buffer + null terminator
+uint8_t disarmCodePos = 0;    // Current input position (0-3)
+char SECRET_CODE[5] = "0000";  // Secret disarm code (4 digits) - generated at boot
+bool secretVisible = false;    // Toggle for showing secret in SETUP_INIT
 
 // Test variable: simulate correct/wrong disarm code
 // true = correct code (DISARMED_SUCCESS), false = wrong code (DISARMED_FAIL)
@@ -121,9 +131,38 @@ void setStatusLedColor(uint32_t color) {
     statusLed.show();
 }
 
+// Generate random 4-digit secret code
+void generateSecretCode() {
+    randomSeed(analogRead(A5) ^ millis());  // Seed with floating analog pin + time
+    
+    for (uint8_t i = 0; i < 4; i++) {
+        SECRET_CODE[i] = '0' + random(0, 10);  // Random digit 0-9
+    }
+    SECRET_CODE[4] = '\0';  // Null terminator
+    
+    Serial.println(F("\n╔══════════════════════════════════════════════════════╗"));
+    Serial.print(F("║  SECRET DISARM CODE: "));
+    Serial.print(SECRET_CODE[0]);
+    Serial.print(SECRET_CODE[1]);
+    Serial.print(SECRET_CODE[2]);
+    Serial.print(SECRET_CODE[3]);
+    Serial.println(F("                            ║"));
+    Serial.println(F("║  Press # in SETUP_INIT to toggle visibility         ║"));
+    Serial.println(F("╚══════════════════════════════════════════════════════╝\n"));
+}
+
 void displayCurrentTime() {
     if (display) {
         display->displayTime(timerMinutes, timerSeconds);
+    }
+}
+
+// Display custom pattern (e.g., dashes for disarm mode)
+void displayCustom(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4) {
+    if (display) {
+        // Use displayTime with special values for custom patterns
+        // 99 will show as dash '-' in digit
+        display->displayTime(d1 * 10 + d2, d3 * 10 + d4);
     }
 }
 
@@ -164,6 +203,9 @@ void setup() {
     
     setStatusLedColor(COLOR_OFF);
     Serial.println(F("  OFF (boot complete)\n"));
+    
+    // Generate random secret code after boot sequence
+    generateSecretCode();
     
     // Initialize buzzer
     buzzer = new BuzzerController(systemConfig.buzzerPin);
@@ -309,8 +351,8 @@ void loop() {
         }
     }
     
-    // Countdown tick (1 second decrement)
-    if (currentState == BombState::COUNTDOWN_RUNNING) {
+    // Countdown tick (1 second decrement) - runs in COUNTDOWN_RUNNING and DISARM_MODE
+    if (currentState == BombState::COUNTDOWN_RUNNING || currentState == BombState::DISARM_MODE) {
         if (currentMillis - lastCountdownTick >= 1000) {
             lastCountdownTick = currentMillis;
             
@@ -327,9 +369,24 @@ void loop() {
                 if (buzzer) buzzer->playError(); // Alarm sound
                 Serial.println(F("\n[EXPLODED] Timer reached 00:00 - BOMB DETONATED!"));
                 Serial.println(F("[FAIL] Mission failed - device exploded\n"));
+                
+                // Show 00:00 on display
+                display->displayTime(0, 0);
             }
             
-            displayCurrentTime();
+            // Only update display if in COUNTDOWN_RUNNING or DISARM_MODE (show countdown time)
+            if (currentState == BombState::COUNTDOWN_RUNNING || currentState == BombState::DISARM_MODE) {
+                displayCurrentTime();
+            }
+            
+            // Log time remaining during disarm attempt
+            if (currentState == BombState::DISARM_MODE) {
+                Serial.print(F("[COUNTDOWN] Time remaining: "));
+                Serial.print(timerMinutes);
+                Serial.print(F(":"));
+                if (timerSeconds < 10) Serial.print(F("0"));
+                Serial.println(timerSeconds);
+            }
         }
     }
     
@@ -389,6 +446,28 @@ void handleKeyPress(KeypadKey key) {
                 Serial.println(F("[STATE] Entering EDIT mode - use 2/8 to change digit, 4/6 to move cursor, C to confirm"));
                 Serial.print(F("[DEBUG STATE] Cursor blink enabled | Initial position: D"));
                 Serial.println(cursorPosition + 1);
+            } else if (key == KeypadKey::KEY_HASH) {
+                // Toggle secret code visibility on display
+                secretVisible = !secretVisible;
+                
+                if (secretVisible) {
+                    // Show secret code on display
+                    uint8_t d1 = SECRET_CODE[0] - '0';
+                    uint8_t d2 = SECRET_CODE[1] - '0';
+                    uint8_t d3 = SECRET_CODE[2] - '0';
+                    uint8_t d4 = SECRET_CODE[3] - '0';
+                    display->displayTime(d1 * 10 + d2, d3 * 10 + d4);
+                    
+                    Serial.println(F("SETUP_INIT (secret visible)"));
+                    Serial.print(F("[SECRET] Displaying code on screen: "));
+                    Serial.println(SECRET_CODE);
+                } else {
+                    // Hide secret, show default time
+                    displayCurrentTime();
+                    
+                    Serial.println(F("SETUP_INIT (secret hidden)"));
+                    Serial.println(F("[SECRET] Code hidden - displaying default time"));
+                }
             } else {
                 Serial.println(F("SETUP_INIT (ignored - press A to enter EDIT mode)"));
             }
@@ -514,8 +593,170 @@ void handleKeyPress(KeypadKey key) {
             break;
             
         case BombState::COUNTDOWN_RUNNING:
-            // No keys allowed during countdown - simplified logic
-            Serial.println(F("COUNTDOWN_RUNNING (all keys ignored - countdown in progress)"));
+            if (key == KeypadKey::KEY_HASH) {
+                // Enter DISARM mode
+                currentState = BombState::DISARM_MODE;
+                setStatusLedColor(COLOR_YELLOW);
+                
+                // Reset disarm code buffer
+                for (uint8_t i = 0; i < 4; i++) {
+                    disarmCode[i] = '-';
+                }
+                disarmCode[4] = '\0';
+                disarmCodePos = 0;
+                
+                // Stop colon blinking, show solid
+                if (display) display->setColonBlink(true);
+                
+                // Keep displaying countdown time (no change to display)
+                
+                if (buzzer) buzzer->playSuccess();  // Audio feedback
+                
+                Serial.println(F("DISARM_MODE"));
+                Serial.println(F("[DISARM] Entered disarm mode - enter 4-digit code, press C to confirm"));
+                Serial.println(F("[DISARM] Current input: ----"));
+                Serial.println(F("[DISARM] Display continues showing countdown time"));
+            } else {
+                Serial.println(F("COUNTDOWN_RUNNING (press # to enter DISARM mode)"));
+            }
+            break;
+            
+        case BombState::DISARM_MODE:
+            Serial.print(F("[DEBUG] Key pressed: "));
+            Serial.print(static_cast<uint8_t>(key));
+            Serial.print(F(" | Checking if numeric... "));
+            
+            // Accept numeric keys (0-9) - check each individually since KEY_0 is not sequential
+            if (key == KeypadKey::KEY_0 || key == KeypadKey::KEY_1 || key == KeypadKey::KEY_2 || 
+                key == KeypadKey::KEY_3 || key == KeypadKey::KEY_4 || key == KeypadKey::KEY_5 || 
+                key == KeypadKey::KEY_6 || key == KeypadKey::KEY_7 || key == KeypadKey::KEY_8 || 
+                key == KeypadKey::KEY_9) {
+                
+                Serial.println(F("YES - numeric key detected!"));
+                
+                if (disarmCodePos < 4) {
+                    // Convert key enum to digit character
+                    char digit;
+                    if (key == KeypadKey::KEY_0) digit = '0';
+                    else if (key == KeypadKey::KEY_1) digit = '1';
+                    else if (key == KeypadKey::KEY_2) digit = '2';
+                    else if (key == KeypadKey::KEY_3) digit = '3';
+                    else if (key == KeypadKey::KEY_4) digit = '4';
+                    else if (key == KeypadKey::KEY_5) digit = '5';
+                    else if (key == KeypadKey::KEY_6) digit = '6';
+                    else if (key == KeypadKey::KEY_7) digit = '7';
+                    else if (key == KeypadKey::KEY_8) digit = '8';
+                    else digit = '9';
+                    
+                    disarmCode[disarmCodePos] = digit;
+                    disarmCodePos++;
+                    
+                    Serial.print(F("DISARM_MODE (digit "));
+                    Serial.print(digit);
+                    Serial.println(F(" captured)"));
+                    
+                    // Audio feedback for each digit
+                    if (buzzer) buzzer->playStartup();
+                    
+                    // Display continues showing countdown time (no update needed)
+                    
+                    Serial.print(F("[DISARM] Digit entered: "));
+                    Serial.print(digit);
+                    Serial.print(F(" | Current input: "));
+                    Serial.print(disarmCode);
+                    Serial.print(F(" ("));
+                    Serial.print(disarmCodePos);
+                    Serial.println(F("/4)"));
+                } else {
+                    Serial.println(F("DISARM_MODE (4 digits complete)"));
+                    Serial.println(F("[DISARM] Code already complete (4 digits) - press C to confirm, D to clear"));
+                }
+            } else if (key == KeypadKey::KEY_C) {
+                Serial.println(F("NO - KEY_C detected"));
+                // Confirm code (changed from KEY_HASH)
+                if (disarmCodePos == 4) {
+                    Serial.println(F("DISARM_MODE (confirming code)"));
+                    Serial.print(F("[DISARM] Code submitted: "));
+                    Serial.println(disarmCode);
+                    Serial.print(F("[DISARM] Secret code: "));
+                    Serial.println(SECRET_CODE);
+                    
+                    // Check if code matches
+                    bool codeCorrect = true;
+                    for (uint8_t i = 0; i < 4; i++) {
+                        if (disarmCode[i] != SECRET_CODE[i]) {
+                            codeCorrect = false;
+                            break;
+                        }
+                    }
+                    
+                    if (codeCorrect) {
+                        // SUCCESS - bomb disarmed
+                        setStatusLedColor(COLOR_GREEN);
+                        if (buzzer) buzzer->playSuccess();
+                        
+                        Serial.println(F("[SUCCESS] ✓ Correct code - BOMB DISARMED!"));
+                        Serial.println(F("[SUCCESS] Mission accomplished - device neutralized\n"));
+                        
+                        // Show success on display (88:88)
+                        display->displayTime(88, 88);
+                        
+                        // Terminal state - reset device to continue
+                        currentState = BombState::SETUP_INIT;
+                        delay(3000);
+                        
+                        // Reset to initial state
+                        timerMinutes = 10;
+                        timerSeconds = 0;
+                        displayCurrentTime();
+                        setStatusLedColor(COLOR_OFF);
+                    } else {
+                        // FAIL - wrong code, bomb explodes
+                        currentState = BombState::EXPLODED;
+                        if (buzzer) buzzer->playError();
+                        
+                        Serial.println(F("[FAIL] ✗ Wrong code - BOMB EXPLODED!"));
+                        Serial.println(F("[FAIL] Mission failed - incorrect disarm code\n"));
+                        
+                        // Show 00:00
+                        display->displayTime(0, 0);
+                    }
+                } else {
+                    Serial.println(F("DISARM_MODE (code incomplete)"));
+                    Serial.print(F("[DISARM] Code incomplete ("));
+                    Serial.print(disarmCodePos);
+                    Serial.println(F("/4 digits) - enter remaining digits"));
+                }
+            } else if (key == KeypadKey::KEY_D) {
+                Serial.println(F("NO - KEY_D detected"));
+                // Clear code and restart (changed from KEY_STAR)
+                Serial.println(F("DISARM_MODE (clearing code)"));
+                
+                // Reset disarm code buffer
+                for (uint8_t i = 0; i < 4; i++) {
+                    disarmCode[i] = '-';
+                }
+                disarmCode[4] = '\0';
+                disarmCodePos = 0;
+                
+                // Display continues showing countdown time (no change needed)
+                
+                Serial.println(F("[DISARM] Code cleared - enter new 4-digit code"));
+                Serial.println(F("[DISARM] Current input: ----"));
+            } else if (key == KeypadKey::KEY_STAR) {
+                Serial.println(F("NO - KEY_STAR detected"));
+                // Cancel disarm, return to countdown
+                Serial.println(F("DISARM_MODE (cancelled)"));
+                currentState = BombState::COUNTDOWN_RUNNING;
+                setStatusLedColor(COLOR_ORANGE);
+                if (display) display->setColonBlink(colonBlinkState);
+                displayCurrentTime();
+                
+                Serial.println(F("[DISARM] Cancelled - returned to countdown"));
+            } else {
+                Serial.println(F("NO - unrecognized key"));
+                Serial.println(F("DISARM_MODE (0-9 to enter code, C to confirm, D to clear, * to cancel)"));
+            }
             break;
             
         case BombState::EXPLODED:

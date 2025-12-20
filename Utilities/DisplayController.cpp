@@ -235,6 +235,11 @@ void DisplayController::selectDigit(uint8_t digitIndex) {
 }
 
 uint8_t DisplayController::getSegmentPattern(uint8_t number, bool rotated) {
+    // Special case: 99 displays as dash '-' (segment G only)
+    if (number == 99) {
+        return 0b01000000;  // Only G segment (middle horizontal bar)
+    }
+    
     // Validate input
     if (number > 9) number = 0;
     
