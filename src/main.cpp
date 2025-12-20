@@ -1,21 +1,25 @@
 #include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
 #include <SystemInitializer.h>
 #include <BuzzerController.h>
 #include <KeypadController.h>
 #include <DisplayController.h>
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INCREMENTAL TEST - BOOT + KEYPAD + DISPLAY
+// TACBOMB COUNTDOWN TIMER - FULL STATE MACHINE
 // ═══════════════════════════════════════════════════════════════════════════
-// Test: SystemInitializer + BuzzerController + KeypadController + DisplayController
-// Valida: boot LEDs + buzzer + keypad + display 7-segment con 74HC595
-// Pin assignment:
-//   - Boot LEDs: 10,11,12 (disabilitati dopo init, RIUSATI per display digit select)
-//   - Buzzer: 9
-//   - Keypad rows: 4, 5, 6, 7
-//   - Keypad cols: A1, A2, A3, A4
-//   - Display 74HC595: 2 (data), 3 (clock), A0 (latch)
-//   - Display digit select: 10, 11, 12, A5 (COM cathode multiplexing)
+// States: SETUP_INIT → SETUP_EDIT → ARMED → COUNTDOWN_RUNNING → EXPLODED
+// Controls:
+//   - KEY_A: Enter EDIT mode
+//   - KEY_2/8: increment/decrement selected digit (in EDIT)
+//   - KEY_4/6: move cursor left/right (wrap around)
+//   - KEY_C: Confirm timer → ARMED state
+//   - KEY_D: Cancel (return to INIT, reset timer)
+//   - KEY_STAR (*): START countdown from ARMED
+//   - KEY_B: Battery check (future - not implemented)
+// Visual feedback:
+//   - Colon: SOLID in SETUP_EDIT/ARMED, BLINKING during COUNTDOWN_RUNNING
+//   - Status LED: OFF (INIT), ORANGE blink (EDIT/COUNTDOWN), GREEN (ARMED), RED blink (EXPLODED)
 // ═══════════════════════════════════════════════════════════════════════════
 
 // System configuration
@@ -24,12 +28,23 @@ SystemConfig systemConfig = {
     .deviceName = "Arduino-Boot-Test",
     .networkSSID = "N/A",
     .baudRate = 115200,
-    .redLedPin = 10,
-    .orangeLedPin = 11,
-    .greenLedPin = 12,
+    .redLedPin = 10,      // Not used anymore (display D1)
+    .orangeLedPin = 11,   // Not used anymore (display D2)
+    .greenLedPin = 12,    // Not used anymore (display D3)
     .buzzerPin = 9,
     .blinkIntervalMs = 200
 };
+
+// Status LED (NeoPixel WS2812B on pin 8)
+const uint8_t STATUS_LED_PIN = 8;
+const uint8_t STATUS_LED_COUNT = 1;
+Adafruit_NeoPixel statusLed(STATUS_LED_COUNT, STATUS_LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Status LED colors
+const uint32_t COLOR_OFF = statusLed.Color(0, 0, 0);
+const uint32_t COLOR_RED = statusLed.Color(255, 0, 0);
+const uint32_t COLOR_ORANGE = statusLed.Color(255, 165, 0);
+const uint32_t COLOR_GREEN = statusLed.Color(0, 255, 0);
 
 // Keypad configuration (4×4 membrane keypad)
 const uint8_t KEYPAD_ROWS = 4;
@@ -52,17 +67,103 @@ DisplayController* display = nullptr;
 // Keypad timing debug (global counter per DEBUG_KEYPAD_TIMING in KeypadController)
 volatile uint16_t keypadSlowScans = 0;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE MACHINE & TIMER VARIABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum class BombState {
+    SETUP_INIT,        // Initial state: display 10:00, wait for KEY_A
+    SETUP_EDIT,        // Editing timer: orange blink, D1 blinks (cursor), colon SOLID
+    ARMED,             // Timer confirmed: green solid, colon SOLID, wait for KEY_STAR
+    COUNTDOWN_RUNNING, // Countdown active: orange blink, colon BLINKS, decrement every 1s
+    EXPLODED           // Timer reached 00:00: red blink, alarm sound
+};
+
+BombState currentState = BombState::SETUP_INIT;
+
+// Timer value (minutes:seconds)
+uint8_t timerMinutes = 10;
+uint8_t timerSeconds = 0;
+
+// Cursor position for editing (0=M1, 1=M0, 2=S1, 3=S0)
+uint8_t cursorPosition = 0;
+
+// Test variable: simulate correct/wrong disarm code
+// true = correct code (DISARMED_SUCCESS), false = wrong code (DISARMED_FAIL)
+bool testDisarmCodeCorrect = true; // Change to false to test fail scenario
+
 // Colon blinking state (500ms on/off for time separator)
 unsigned long lastColonBlinkTime = 0;
 bool colonBlinkState = true;
+
+// Cursor blinking state (500ms on/off during SETUP_EDIT)
+unsigned long lastCursorBlinkTime = 0;
+bool cursorBlinkState = true;
+
+// LED blinking state (500ms on/off for orange LED)
+unsigned long lastLedBlinkTime = 0;
+bool ledBlinkState = false;
+
+// Countdown timer
+unsigned long lastCountdownTick = 0;
+
+// Function declarations
+void setStatusLedColor(uint32_t color);
+void displayCurrentTime();
+bool checkDisarmCode();
+void handleKeyPress(KeypadKey key);
+void incrementDigitAtCursor();
+void decrementDigitAtCursor();
+
+// Set Neopixel status LED color
+void setStatusLedColor(uint32_t color) {
+    statusLed.setPixelColor(0, color);
+    statusLed.show();
+}
+
+void displayCurrentTime() {
+    if (display) {
+        display->displayTime(timerMinutes, timerSeconds);
+    }
+}
+
+// Check disarm code (placeholder - uses test boolean for now)
+// In real implementation: compare entered code with secret stored in EEPROM
+bool checkDisarmCode() {
+    // TODO: Replace with actual secret key verification
+    // For now, use test variable to simulate success/fail scenarios
+    return testDisarmCodeCorrect;
+}
 
 void setup() {
     Serial.begin(systemConfig.baudRate);
     while (!Serial) { delay(10); }
     
     Serial.println(F("\n\n╔══════════════════════════════════════════════════════╗"));
-    Serial.println(F("║     MINIMAL TEST - Boot + Keypad Hello World         ║"));
+    Serial.println(F("║         TACBOMB - Countdown Timer System             ║"));
     Serial.println(F("╚══════════════════════════════════════════════════════╝\n"));
+    
+    // Initialize Neopixel status LED
+    statusLed.begin();
+    Serial.println(F("✓ NeoPixel status LED initialized (pin 8)\n"));
+    
+    // Boot sequence visual feedback via Neopixel
+    Serial.println(F("[NEOPIXEL] Boot sequence: RED → ORANGE → GREEN → OFF"));
+    
+    setStatusLedColor(COLOR_RED);
+    Serial.println(F("  RED (system starting)"));
+    delay(500);
+    
+    setStatusLedColor(COLOR_ORANGE);
+    Serial.println(F("  ORANGE (reading config)"));
+    delay(800);
+    
+    setStatusLedColor(COLOR_GREEN);
+    Serial.println(F("  GREEN (ready)"));
+    delay(500);
+    
+    setStatusLedColor(COLOR_OFF);
+    Serial.println(F("  OFF (boot complete)\n"));
     
     // Initialize buzzer
     buzzer = new BuzzerController(systemConfig.buzzerPin);
@@ -84,7 +185,7 @@ void setup() {
             Serial.println(F("║              ✓ BOOT TEST PASSED                      ║"));
             Serial.println(F("╚══════════════════════════════════════════════════════╝\n"));
             
-            // Disable boot LEDs after successful init (release pins for display)
+            // Disable boot LEDs after successful init (release pins 10,11,12 for display)
             systemInit->disableBootLeds();
             Serial.println(F("✓ Boot LEDs disabled (pins 10,11,12 released for display reuse)\n"));
         } else {
@@ -132,17 +233,24 @@ void setup() {
         display->begin();
         Serial.println(F("✓ DisplayController initialized\n"));
         
-        // Display test pattern: 12:34
-        display->displayTime(12, 34);
+        // Display default time: 10:00
+        displayCurrentTime();
         display->setColonBlink(true); // Start with colon visible
-        Serial.println(F("✓ Display showing test pattern: 12:34 (colon blinks 500ms)\n"));
+        Serial.println(F("✓ Display showing default: 10:00\n"));
         
         Serial.println(F("╔══════════════════════════════════════════════════════╗"));
-        Serial.println(F("║         FULL SYSTEM TEST - READY                     ║"));
+        Serial.println(F("║           TACBOMB COUNTDOWN TIMER                    ║"));
         Serial.println(F("╠══════════════════════════════════════════════════════╣"));
-        Serial.println(F("║  Display: \"12:34\" with blinking colon (500ms)       ║"));
-        Serial.println(F("║  Keypad: Press keys (1-9,0,A-D,*,#) for test        ║"));
-        Serial.println(F("║  Serial: Each keypress logged as [KEY] X            ║"));
+        Serial.println(F("║  STATE: SETUP_INIT - Press A to enter EDIT mode     ║"));
+        Serial.println(F("║                                                      ║"));
+        Serial.println(F("║  Controls:                                           ║"));
+        Serial.println(F("║    A = Next state (INIT→EDIT→CONFIRM→START)         ║"));
+        Serial.println(F("║    2/8 = Inc/Dec digit (in EDIT mode)                ║"));
+        Serial.println(F("║    4/6 = Move cursor left/right                      ║"));
+        Serial.println(F("║    B = Disarm attempt (check code: success/fail)     ║"));
+        Serial.println(F("║    C = Force explode (test timer expiry)             ║"));
+        Serial.println(F("║                                                      ║"));
+        Serial.println(F("║  Test variable: testDisarmCodeCorrect (true/false)   ║"));
         Serial.println(F("╚══════════════════════════════════════════════════════╝\n"));
     } else {
         Serial.println(F("✗ Failed to create DisplayController"));
@@ -150,23 +258,83 @@ void setup() {
 }
 
 void loop() {
+    unsigned long currentMillis = millis();
+    
     // Refresh display (time-division multiplexing - MUST call frequently!)
     if (display) {
         display->refresh();
     }
     
-    // Blink colon every 500ms (time separator animation)
-    unsigned long currentMillis = millis();
+    // Blink colon every 500ms (ONLY during COUNTDOWN_RUNNING)
     if (currentMillis - lastColonBlinkTime >= 500) {
         colonBlinkState = !colonBlinkState;
         if (display) {
-            display->setColonBlink(colonBlinkState);
+            // Colon blinks ONLY during countdown, solid otherwise
+            if (currentState == BombState::COUNTDOWN_RUNNING) {
+                display->setColonBlink(colonBlinkState);
+            }
         }
         lastColonBlinkTime = currentMillis;
     }
     
+    // Cursor blinking during SETUP_EDIT (500ms on/off)
+    if (currentState == BombState::SETUP_EDIT && currentMillis - lastCursorBlinkTime >= 500) {
+        cursorBlinkState = !cursorBlinkState;
+        lastCursorBlinkTime = currentMillis;
+        
+        Serial.print(F("[DEBUG CURSOR] Blink toggle: "));
+        Serial.print(cursorBlinkState ? F("ON") : F("OFF"));
+        Serial.print(F(" | Position: "));
+        Serial.print(cursorPosition);
+        Serial.print(F(" | Display digit: D"));
+        Serial.println(cursorPosition + 1);
+        
+        // Blank/unblank the digit at cursor position
+        if (display) {
+            display->setDigitBlanked(cursorPosition, !cursorBlinkState);
+        }
+    }
+    
+    // LED blinking for SETUP_EDIT, COUNTDOWN_RUNNING, and EXPLODED states
+    if (currentMillis - lastLedBlinkTime >= 500) {
+        ledBlinkState = !ledBlinkState;
+        lastLedBlinkTime = currentMillis;
+        
+        if (currentState == BombState::SETUP_EDIT) {
+            setStatusLedColor(ledBlinkState ? COLOR_ORANGE : COLOR_OFF);
+        } else if (currentState == BombState::COUNTDOWN_RUNNING) {
+            setStatusLedColor(ledBlinkState ? COLOR_ORANGE : COLOR_OFF);
+        } else if (currentState == BombState::EXPLODED) {
+            setStatusLedColor(ledBlinkState ? COLOR_RED : COLOR_OFF);
+        }
+    }
+    
+    // Countdown tick (1 second decrement)
+    if (currentState == BombState::COUNTDOWN_RUNNING) {
+        if (currentMillis - lastCountdownTick >= 1000) {
+            lastCountdownTick = currentMillis;
+            
+            // Decrement timer
+            if (timerSeconds > 0) {
+                timerSeconds--;
+            } else if (timerMinutes > 0) {
+                timerMinutes--;
+                timerSeconds = 59;
+            } else {
+                // Timer expired → EXPLODED
+                currentState = BombState::EXPLODED;
+                // LED blinking handled in loop(), don't set color here
+                if (buzzer) buzzer->playError(); // Alarm sound
+                Serial.println(F("\n[EXPLODED] Timer reached 00:00 - BOMB DETONATED!"));
+                Serial.println(F("[FAIL] Mission failed - device exploded\n"));
+            }
+            
+            displayCurrentTime();
+        }
+    }
+    
     if (!keypad) {
-        delay(1000);
+        delay(10);
         return;
     }
     
@@ -174,38 +342,253 @@ void loop() {
     KeypadKey key = keypad->scan();
     
     if (key != KeypadKey::NONE) {
-        // Print key press with visual formatting
-        Serial.print(F("\n[KEY] "));
-        
-        // Map key enum to character
-        switch (key) {
-            case KeypadKey::KEY_0: Serial.print(F("0")); break;
-            case KeypadKey::KEY_1: Serial.print(F("1")); break;
-            case KeypadKey::KEY_2: Serial.print(F("2")); break;
-            case KeypadKey::KEY_3: Serial.print(F("3")); break;
-            case KeypadKey::KEY_4: Serial.print(F("4")); break;
-            case KeypadKey::KEY_5: Serial.print(F("5")); break;
-            case KeypadKey::KEY_6: Serial.print(F("6")); break;
-            case KeypadKey::KEY_7: Serial.print(F("7")); break;
-            case KeypadKey::KEY_8: Serial.print(F("8")); break;
-            case KeypadKey::KEY_9: Serial.print(F("9")); break;
-            case KeypadKey::KEY_A: Serial.print(F("A")); break;
-            case KeypadKey::KEY_B: Serial.print(F("B")); break;
-            case KeypadKey::KEY_C: Serial.print(F("C")); break;
-            case KeypadKey::KEY_D: Serial.print(F("D")); break;
-            case KeypadKey::KEY_STAR: Serial.print(F("*")); break;
-            case KeypadKey::KEY_HASH: Serial.print(F("#")); break;
-            default: Serial.print(F("UNKNOWN")); break;
-        }
-        
-        Serial.println(F(" - detected ✓"));
-        
-        // Optional: beep on keypress for audio feedback
-        if (buzzer) {
-            buzzer->playSuccess(); // Short beep
-        }
+        handleKeyPress(key);
     }
     
-    // Small delay to avoid overwhelming Serial output
     delay(10);
+}
+
+// Handle keypress based on current state
+void handleKeyPress(KeypadKey key) {
+    Serial.print(F("[KEY] "));
+    
+    switch (key) {
+        case KeypadKey::KEY_0: Serial.print(F("0")); break;
+        case KeypadKey::KEY_1: Serial.print(F("1")); break;
+        case KeypadKey::KEY_2: Serial.print(F("2")); break;
+        case KeypadKey::KEY_3: Serial.print(F("3")); break;
+        case KeypadKey::KEY_4: Serial.print(F("4")); break;
+        case KeypadKey::KEY_5: Serial.print(F("5")); break;
+        case KeypadKey::KEY_6: Serial.print(F("6")); break;
+        case KeypadKey::KEY_7: Serial.print(F("7")); break;
+        case KeypadKey::KEY_8: Serial.print(F("8")); break;
+        case KeypadKey::KEY_9: Serial.print(F("9")); break;
+        case KeypadKey::KEY_A: Serial.print(F("A")); break;
+        case KeypadKey::KEY_B: Serial.print(F("B")); break;
+        case KeypadKey::KEY_C: Serial.print(F("C")); break;
+        case KeypadKey::KEY_D: Serial.print(F("D")); break;
+        case KeypadKey::KEY_STAR: Serial.print(F("*")); break;
+        case KeypadKey::KEY_HASH: Serial.print(F("#")); break;
+        default: Serial.print(F("?")); break;
+    }
+    
+    Serial.print(F(" - State: "));
+    
+    // State-specific key handling
+    switch (currentState) {
+        case BombState::SETUP_INIT:
+            if (key == KeypadKey::KEY_A) {
+                currentState = BombState::SETUP_EDIT;
+                setStatusLedColor(COLOR_ORANGE); // Start orange blink
+                // Colon stays solid during EDIT (not blinking)
+                if (display) display->setColonBlink(true); // Always visible
+                // Reset cursor blink timer when entering EDIT
+                lastCursorBlinkTime = millis();
+                cursorBlinkState = true;
+                Serial.println(F("SETUP_EDIT"));
+                Serial.println(F("[STATE] Entering EDIT mode - use 2/8 to change digit, 4/6 to move cursor, C to confirm"));
+                Serial.print(F("[DEBUG STATE] Cursor blink enabled | Initial position: D"));
+                Serial.println(cursorPosition + 1);
+            } else {
+                Serial.println(F("SETUP_INIT (ignored - press A to enter EDIT mode)"));
+            }
+            break;
+            
+        case BombState::SETUP_EDIT:
+            if (key == KeypadKey::KEY_C) {
+                // Confirm timer → ARMED state
+                Serial.println(F("[DEBUG STATE] Exiting EDIT mode - cursor blink disabled"));
+                
+                // Clear digit blanking
+                if (display) {
+                    display->setDigitBlanked(cursorPosition, false);
+                }
+                
+                currentState = BombState::ARMED;
+                setStatusLedColor(COLOR_GREEN);
+                if (display) display->setColonBlink(true); // Keep solid
+                if (buzzer) buzzer->playSuccess();
+                Serial.println(F("ARMED"));
+                Serial.print(F("[STATE] Timer confirmed: "));
+                Serial.print(timerMinutes);
+                Serial.print(F(":"));
+                if (timerSeconds < 10) Serial.print(F("0"));
+                Serial.print(timerSeconds);
+                Serial.println(F(" - press * to START countdown"));
+            } else if (key == KeypadKey::KEY_D) {
+                // Cancel → return to INIT, reset timer
+                Serial.println(F("[DEBUG STATE] Exiting EDIT mode (cancelled) - cursor blink disabled"));
+                
+                // Clear digit blanking
+                if (display) {
+                    display->setDigitBlanked(cursorPosition, false);
+                }
+                
+                currentState = BombState::SETUP_INIT;
+                setStatusLedColor(COLOR_OFF);
+                timerMinutes = 10;
+                timerSeconds = 0;
+                cursorPosition = 0;
+                displayCurrentTime();
+                Serial.println(F("SETUP_INIT"));
+                Serial.println(F("[STATE] Cancelled - timer reset to 10:00"));
+            } else if (key == KeypadKey::KEY_2) {
+                incrementDigitAtCursor();
+                displayCurrentTime();
+                Serial.println(F("SETUP_EDIT (incremented)"));
+            } else if (key == KeypadKey::KEY_8) {
+                decrementDigitAtCursor();
+                displayCurrentTime();
+                Serial.println(F("SETUP_EDIT (decremented)"));
+            } else if (key == KeypadKey::KEY_4) {
+                // Move cursor left (wrap)
+                uint8_t oldPos = cursorPosition;
+                
+                // Clear blanking on old position BEFORE moving
+                if (display) {
+                    display->setDigitBlanked(oldPos, false);
+                }
+                
+                if (cursorPosition == 0) cursorPosition = 3;
+                else cursorPosition--;
+                
+                // Reset blink state to start visible on new position
+                cursorBlinkState = true;
+                lastCursorBlinkTime = millis();
+                
+                Serial.print(F("SETUP_EDIT (cursor moved: D"));
+                Serial.print(oldPos + 1);
+                Serial.print(F(" → D"));
+                Serial.print(cursorPosition + 1);
+                Serial.println(F(")"));
+                Serial.print(F("[DEBUG STATE] Selected display changed: D"));
+                Serial.println(cursorPosition + 1);
+            } else if (key == KeypadKey::KEY_6) {
+                // Move cursor right (wrap)
+                uint8_t oldPos = cursorPosition;
+                
+                // Clear blanking on old position BEFORE moving
+                if (display) {
+                    display->setDigitBlanked(oldPos, false);
+                }
+                
+                if (cursorPosition == 3) cursorPosition = 0;
+                else cursorPosition++;
+                
+                // Reset blink state to start visible on new position
+                cursorBlinkState = true;
+                lastCursorBlinkTime = millis();
+                
+                Serial.print(F("SETUP_EDIT (cursor moved: D"));
+                Serial.print(oldPos + 1);
+                Serial.print(F(" → D"));
+                Serial.print(cursorPosition + 1);
+                Serial.println(F(")"));
+                Serial.print(F("[DEBUG STATE] Selected display changed: D"));
+                Serial.println(cursorPosition + 1);
+            } else {
+                Serial.println(F("SETUP_EDIT (ignored)"));
+            }
+            break;
+            
+        case BombState::ARMED:
+            if (key == KeypadKey::KEY_STAR) {
+                // START countdown
+                currentState = BombState::COUNTDOWN_RUNNING;
+                setStatusLedColor(COLOR_ORANGE); // Start orange blink
+                // Enable colon blinking during countdown
+                if (display) display->setColonBlink(colonBlinkState);
+                lastCountdownTick = millis();
+                if (buzzer) buzzer->playStartup();
+                Serial.println(F("COUNTDOWN_RUNNING"));
+                Serial.println(F("[START] Countdown initiated!"));
+            } else if (key == KeypadKey::KEY_D) {
+                // Cancel → return to EDIT
+                currentState = BombState::SETUP_EDIT;
+                setStatusLedColor(COLOR_ORANGE);
+                Serial.println(F("SETUP_EDIT"));
+                Serial.println(F("[STATE] Returned to EDIT mode"));
+            } else {
+                Serial.println(F("ARMED (ignored - press * to START, D to cancel)"));
+            }
+            break;
+            
+        case BombState::COUNTDOWN_RUNNING:
+            // No keys allowed during countdown - simplified logic
+            Serial.println(F("COUNTDOWN_RUNNING (all keys ignored - countdown in progress)"));
+            break;
+            
+        case BombState::EXPLODED:
+            Serial.println(F("EXPLODED (terminal state - reset device)"));
+            break;
+    }
+}
+
+void incrementDigitAtCursor() {
+    // cursorPosition: 0=M1 (tens min), 1=M0 (units min), 2=S1 (tens sec), 3=S0 (units sec)
+    switch (cursorPosition) {
+        case 0: // Minutes tens (0-9, but max 99 minutes → max 9 for tens)
+            timerMinutes = (timerMinutes + 10) % 100;
+            if (timerMinutes > 99) timerMinutes = 90;
+            break;
+        case 1: // Minutes units (0-9)
+            {
+                uint8_t tens = (timerMinutes / 10) * 10;
+                uint8_t units = (timerMinutes % 10 + 1) % 10;
+                timerMinutes = tens + units;
+            }
+            break;
+        case 2: // Seconds tens (0-5)
+            {
+                uint8_t tens = ((timerSeconds / 10) + 1) % 6;
+                uint8_t units = timerSeconds % 10;
+                timerSeconds = tens * 10 + units;
+            }
+            break;
+        case 3: // Seconds units (0-9)
+            {
+                uint8_t tens = (timerSeconds / 10) * 10;
+                uint8_t units = (timerSeconds % 10 + 1) % 10;
+                timerSeconds = tens + units;
+            }
+            break;
+    }
+    displayCurrentTime();
+}
+
+void decrementDigitAtCursor() {
+    switch (cursorPosition) {
+        case 0: // Minutes tens
+            if (timerMinutes < 10) {
+                timerMinutes = 90;
+            } else {
+                timerMinutes = ((timerMinutes / 10 - 1) * 10) + (timerMinutes % 10);
+            }
+            break;
+        case 1: // Minutes units
+            {
+                uint8_t tens = (timerMinutes / 10) * 10;
+                uint8_t units = timerMinutes % 10;
+                if (units == 0) units = 9; else units--;
+                timerMinutes = tens + units;
+            }
+            break;
+        case 2: // Seconds tens (0-5)
+            {
+                uint8_t tens = timerSeconds / 10;
+                uint8_t units = timerSeconds % 10;
+                if (tens == 0) tens = 5; else tens--;
+                timerSeconds = tens * 10 + units;
+            }
+            break;
+        case 3: // Seconds units
+            {
+                uint8_t tens = (timerSeconds / 10) * 10;
+                uint8_t units = timerSeconds % 10;
+                if (units == 0) units = 9; else units--;
+                timerSeconds = tens + units;
+            }
+            break;
+    }
+    displayCurrentTime();
 }

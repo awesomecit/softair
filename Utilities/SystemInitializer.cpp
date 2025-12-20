@@ -84,62 +84,46 @@ bool SystemInitializer::initialize() {
 }
 
 void SystemInitializer::setupLeds() {
-    pinMode(config_.redLedPin, OUTPUT);
-    pinMode(config_.orangeLedPin, OUTPUT);
-    pinMode(config_.greenLedPin, OUTPUT);
-    turnOffAllLeds();
+    // DISABLED: Old LED pins (10,11,12) now used for display multiplexing
+    // Status feedback now via Neopixel on pin 8
     
-    // Debug: Print LED pins
-    Serial.print(F("LED Pins: R="));
-    Serial.print(config_.redLedPin);
-    Serial.print(F(" O="));
-    Serial.print(config_.orangeLedPin);
-    Serial.print(F(" G="));
-    Serial.println(config_.greenLedPin);
+    #ifdef DEBUG
+    Serial.println(F("[BOOT] Legacy LED setup skipped (using Neopixel instead)"));
+    #endif
 }
 
 void SystemInitializer::setRedLed() {
-    turnOffAllLeds();
-    Serial.println(F("[LED] RED ON"));
-    digitalWrite(config_.redLedPin, HIGH);
+    // DISABLED: Using Neopixel instead
+    #ifdef DEBUG
+    Serial.println(F("[BOOT] Phase 1: START"));
+    #endif
 }
 
 void SystemInitializer::setOrangeLedBlinking() {
-    turnOffAllLeds();
+    // DISABLED: Using Neopixel instead
+    #ifdef DEBUG
+    Serial.println(F("[BOOT] Phase 2: READING CONFIG"));
+    #endif
     
-    Serial.println(F("[LED] ORANGE BLINK"));
-    // Blink orange LED during config reading phase
-    const int blinkCount = 5;
-    for (int i = 0; i < blinkCount; i++) {
-        digitalWrite(config_.orangeLedPin, HIGH);
-        delay(config_.blinkIntervalMs / 2);
-        digitalWrite(config_.orangeLedPin, LOW);
-        delay(config_.blinkIntervalMs / 2);
-    }
+    // Simulate config reading delay (no LED blink)
+    delay(1000);
 }
 
 void SystemInitializer::setGreenLed() {
-    Serial.println(F("[LED] GREEN ON"));
-    digitalWrite(config_.greenLedPin, HIGH);
+    // DISABLED: Using Neopixel instead
+    #ifdef DEBUG
+    Serial.println(F("[BOOT] Phase 3: READY"));
+    #endif
 }
 
 void SystemInitializer::turnOffAllLeds() {
-    digitalWrite(config_.redLedPin, LOW);
-    digitalWrite(config_.orangeLedPin, LOW);
-    digitalWrite(config_.greenLedPin, LOW);
+    // DISABLED: No longer controlling LED pins
 }
 
 void SystemInitializer::disableBootLeds() {
-    // Turn off all LEDs
-    turnOffAllLeds();
-    
-    // Release pins as INPUT to avoid conflicts (es. keypad rows on pins 10,11,12)
-    pinMode(config_.redLedPin, INPUT);
-    pinMode(config_.orangeLedPin, INPUT);
-    pinMode(config_.greenLedPin, INPUT);
-    
+    // No action needed - pins never configured for LEDs
     #ifdef DEBUG
-    Serial.println(F("[BOOT] LEDs disabled, pins released"));
+    Serial.println(F("[BOOT] Boot sequence complete"));
     #endif
 }
 

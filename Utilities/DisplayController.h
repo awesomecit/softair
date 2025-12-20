@@ -72,6 +72,14 @@ public:
      * @brief Clear all display segments and decimal points
      */
     void clearDisplay();
+    
+    /**
+     * @brief Blank (hide) a specific digit without affecting others
+     * @param digitIndex Digit to blank (0-3, where 0=D1)
+     * @param blank true to hide digit, false to show normally
+     * @note Used for cursor blinking in EDIT mode
+     */
+    void setDigitBlanked(uint8_t digitIndex, bool blank);
 
 private:
     // Hardware pins (74HC595)
@@ -87,6 +95,9 @@ private:
     
     // Decimal points state (bit mask for 4 digits)
     uint8_t decimalPoints_;   // Bit 0-3 = DP for digit 0-3
+    
+    // Digit blanking state (bit mask for 4 digits)
+    uint8_t blankedDigits_;   // Bit 0-3 = blank flag for digit 0-3
     
     // Multiplexing state
     uint8_t currentDigit_;    // Currently active digit (0-3)

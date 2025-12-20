@@ -18,6 +18,7 @@ DisplayController::DisplayController(uint8_t dataPin, uint8_t clockPin, uint8_t 
       clockPin_(clockPin),
       latchPin_(latchPin),
       decimalPoints_(0),
+      blankedDigits_(0),
       currentDigit_(0),
       lastRefreshTime_(0) {
     // Initialize digit buffer to all off
@@ -160,14 +161,22 @@ void DisplayController::refresh() {
     // Non-blocking multiplexing: refresh ogni loop (REFRESH_INTERVAL_US = 0)
     // Con loop time ~26µs → 4 digit × 26µs = ~100µs full cycle = 10kHz refresh rate
     
-    // Get segment pattern for current digit
-    uint8_t segments = digitBuffer_[currentDigit_];
+    // Check if current digit is blanked (for cursor blinking)
+    bool isBlanked = (blankedDigits_ >> currentDigit_) & 0x01;
     
-    // Check if decimal point is enabled for this digit
-    bool dp = (decimalPoints_ >> currentDigit_) & 0x01;
-    
-    // Write to display
-    writeDigit(currentDigit_, segments, dp);
+    if (isBlanked) {
+        // Skip this digit (show nothing)
+        writeDigit(currentDigit_, 0x00, false);
+    } else {
+        // Get segment pattern for current digit
+        uint8_t segments = digitBuffer_[currentDigit_];
+        
+        // Check if decimal point is enabled for this digit
+        bool dp = (decimalPoints_ >> currentDigit_) & 0x01;
+        
+        // Write to display
+        writeDigit(currentDigit_, segments, dp);
+    }
     
     // Move to next digit (wrap around)
     currentDigit_ = (currentDigit_ + 1) % 4;
@@ -178,11 +187,22 @@ void DisplayController::clearDisplay() {
         digitBuffer_[i] = 0x00;
     }
     decimalPoints_ = 0x00;
+    blankedDigits_ = 0x00;  // Clear blanking flags
     
     // Immediately update hardware
     shiftOut8(0x00);  // All segments OFF
     for (uint8_t i = 0; i < 4; i++) {
         digitalWrite(digitPins_[i], HIGH);  // All digits OFF (common cathode)
+    }
+}
+
+void DisplayController::setDigitBlanked(uint8_t digitIndex, bool blank) {
+    if (digitIndex >= 4) return;  // Validate index
+    
+    if (blank) {
+        blankedDigits_ |= (1 << digitIndex);   // Set bit
+    } else {
+        blankedDigits_ &= ~(1 << digitIndex);  // Clear bit
     }
 }
 
