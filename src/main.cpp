@@ -117,6 +117,11 @@ bool ledBlinkState = false;
 // Countdown timer
 unsigned long lastCountdownTick = 0;
 
+// Explosion alarm (60 seconds continuous)
+unsigned long explosionStartTime = 0;
+const unsigned long EXPLOSION_ALARM_DURATION = 60000; // 60 seconds
+bool explosionAlarmActive = false;
+
 // Function declarations
 void setStatusLedColor(uint32_t color);
 void displayCurrentTime();
@@ -337,6 +342,17 @@ void loop() {
         }
     }
     
+    // Explosion alarm management (60 seconds continuous)
+    if (explosionAlarmActive) {
+        if (currentMillis - explosionStartTime >= EXPLOSION_ALARM_DURATION) {
+            // Stop alarm after 60 seconds
+            noTone(systemConfig.buzzerPin);
+            explosionAlarmActive = false;
+            Serial.println(F("[ALARM] Alarm stopped after 60 seconds"));
+        }
+        // Note: tone() continues running until noTone() is called
+    }
+    
     // LED blinking for SETUP_EDIT, COUNTDOWN_RUNNING, and EXPLODED states
     if (currentMillis - lastLedBlinkTime >= 500) {
         ledBlinkState = !ledBlinkState;
@@ -366,9 +382,15 @@ void loop() {
                 // Timer expired → EXPLODED
                 currentState = BombState::EXPLODED;
                 // LED blinking handled in loop(), don't set color here
-                if (buzzer) buzzer->playError(); // Alarm sound
+                
+                // Start continuous alarm for 60 seconds
+                explosionStartTime = millis();
+                explosionAlarmActive = true;
+                tone(systemConfig.buzzerPin, 1000); // Start continuous 1kHz alarm
+                
                 Serial.println(F("\n[EXPLODED] Timer reached 00:00 - BOMB DETONATED!"));
-                Serial.println(F("[FAIL] Mission failed - device exploded\n"));
+                Serial.println(F("[FAIL] Mission failed - device exploded"));
+                Serial.println(F("[ALARM] Continuous alarm for 60 seconds\n"));
                 
                 // Show 00:00 on display
                 display->displayTime(0, 0);
@@ -713,10 +735,15 @@ void handleKeyPress(KeypadKey key) {
                     } else {
                         // FAIL - wrong code, bomb explodes
                         currentState = BombState::EXPLODED;
-                        if (buzzer) buzzer->playError();
+                        
+                        // Start continuous alarm for 60 seconds
+                        explosionStartTime = millis();
+                        explosionAlarmActive = true;
+                        tone(systemConfig.buzzerPin, 1000); // Start continuous 1kHz alarm
                         
                         Serial.println(F("[FAIL] ✗ Wrong code - BOMB EXPLODED!"));
-                        Serial.println(F("[FAIL] Mission failed - incorrect disarm code\n"));
+                        Serial.println(F("[FAIL] Mission failed - incorrect disarm code"));
+                        Serial.println(F("[ALARM] Continuous alarm for 60 seconds\n"));
                         
                         // Show 00:00
                         display->displayTime(0, 0);
